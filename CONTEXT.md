@@ -32,6 +32,10 @@ _Avoid_: ADR (an ADR is an architecture decision specifically), note, log entry
 Separation where the entity that creates an action cannot approve it.
 _Avoid_: four-eyes, dual control (dual control is the human kill-switch case)
 
+**Walking Skeleton**:
+The thinnest end-to-end vertical slice that exercises every foundational concern at once — identity, authorization, audit, events, kill switch — and becomes the spine the rest of the system grows from.
+_Avoid_: MVP, prototype, spike (those imply throwaway or scope, not a load-bearing thin slice)
+
 ## Customer & revenue
 
 **Contact**:

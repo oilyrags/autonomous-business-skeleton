@@ -1,6 +1,6 @@
 # 04 — Kill switch halts the agent within an SLA (drill)
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -18,3 +18,7 @@ The launch-blocker control. The `killswitch` service activates at `global` or `a
 
 - 01 — Happy-path tracer
 - 03 — Token revocation
+
+## Comments
+
+**Done (2026-06-30).** `ab_killswitch` real now: `control.activate(scope, target_id, …)` sets a Postgres control flag, revokes the principal on agent scope (defence in depth), audits the activation, and publishes `KillSwitchActivated`. `state.is_killed` reads the flags; the gateway checks it on every call and **fails closed** (any read error → deny). Tests: global kill denies the next call within a 2s SLA + event published + audited; per-agent kill is scoped (other agents unaffected, target denied); fail-closed on unreadable state (monkeypatched); audit-tamper (`UPDATE` one row) makes `verify_chain()` return False. Full suite: ruff + mypy(26 files) + 11 tests green.

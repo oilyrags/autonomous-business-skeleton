@@ -13,6 +13,7 @@ class Settings:
     jwt_secret: str = os.environ.get("AB_JWT_SECRET", "dev-secret-change-me-in-prod-0123456789abcdef")
     jwt_alg: str = "HS256"
     decision_topic: str = os.environ.get("AB_DECISION_TOPIC", "executive.decision.made")
+    kill_topic: str = os.environ.get("AB_KILL_TOPIC", "security.killswitch.activated")
 
 
 settings = Settings()

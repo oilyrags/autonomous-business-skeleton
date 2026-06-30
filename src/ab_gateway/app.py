@@ -21,7 +21,7 @@ from ab_gateway import model_gateway, opa
 from ab_gateway.tools import TOOLS
 from ab_identity import revocation
 from ab_identity.tokens import InvalidToken, validate_token
-from ab_killswitch.state import is_killed
+from ab_killswitch import state
 from ab_schemas.events import AgentDecisionMade, ApprovalStatus, DataClassification, SubjectRef
 from ab_schemas.models import ToolCallRequest, ToolCallResult
 
@@ -64,8 +64,12 @@ def tool_call(
     if revocation.is_revoked(principal):
         return _deny(principal, req.tool, resource, "credential revoked", 403)
 
-    # 3. Kill switch (fail-closed).
-    if is_killed(principal):
+    # 3. Kill switch (fail-closed: deny if state can't be read).
+    try:
+        killed = state.is_killed(principal)
+    except Exception:  # noqa: BLE001 - any failure to read state must fail closed
+        killed = True
+    if killed:
         return _deny(principal, req.tool, resource, "kill switch active", 403)
 
     # 3. Reason via the (stub) model — boundary exercised, output not used for the decision.

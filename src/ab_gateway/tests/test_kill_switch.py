@@ -13,7 +13,6 @@ from ab_agent.runtime import record_decision
 from ab_audit import store
 from ab_common import bus, db
 from ab_common.config import settings
-from ab_identity.tokens import issue_token
 from ab_killswitch import control, state
 
 AGENT = "executive.cmo_agent"
@@ -59,8 +58,10 @@ def _consume_kill_event(produce: Callable[[], None], timeout: float = 20.0) -> s
     return found
 
 
-def test_global_kill_halts_within_sla(gateway_client: TestClient, clean_db: None) -> None:
-    token = issue_token(AGENT)
+def test_global_kill_halts_within_sla(
+    gateway_client: TestClient, clean_db: None, make_token: Callable[[str], str]
+) -> None:
+    token = make_token(AGENT)
 
     event = _consume_kill_event(lambda: control.activate("global", None, "drill", "tester"))
 
@@ -77,8 +78,10 @@ def test_global_kill_halts_within_sla(gateway_client: TestClient, clean_db: None
     assert len(store.read(action="killswitch.activate")) >= 1
 
 
-def test_per_agent_kill_is_scoped(gateway_client: TestClient, clean_db: None) -> None:
-    token = issue_token(AGENT)
+def test_per_agent_kill_is_scoped(
+    gateway_client: TestClient, clean_db: None, make_token: Callable[[str], str]
+) -> None:
+    token = make_token(AGENT)
 
     # Killing a different agent does not affect ours.
     control.activate("agent", "executive.intern_agent", "drill", "tester")
@@ -90,19 +93,24 @@ def test_per_agent_kill_is_scoped(gateway_client: TestClient, clean_db: None) ->
 
 
 def test_gateway_fails_closed_when_state_unreadable(
-    gateway_client: TestClient, clean_db: None, monkeypatch: pytest.MonkeyPatch
+    gateway_client: TestClient,
+    clean_db: None,
+    make_token: Callable[[str], str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def boom(_principal: str) -> bool:
         raise RuntimeError("kill-switch store unreachable")
 
     monkeypatch.setattr(state, "is_killed", boom)
-    token = issue_token(AGENT)
+    token = make_token(AGENT)
     resp = record_decision(gateway_client, token, _decision())
     assert resp.status_code == 403  # denied, not allowed
 
 
-def test_tampering_breaks_the_audit_chain(gateway_client: TestClient, clean_db: None) -> None:
-    token = issue_token(AGENT)
+def test_tampering_breaks_the_audit_chain(
+    gateway_client: TestClient, clean_db: None, make_token: Callable[[str], str]
+) -> None:
+    token = make_token(AGENT)
     assert record_decision(gateway_client, token, _decision()).status_code == 200
     assert store.verify_chain() is True
 

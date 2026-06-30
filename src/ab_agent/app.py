@@ -13,17 +13,18 @@ import httpx
 from fastapi import FastAPI
 
 from ab_agent.runtime import record_decision
-from ab_identity.tokens import issue_token
+from ab_identity.oidc import fetch_token
 
 app = FastAPI(title="ab-agent")
 
 GATEWAY_URL = os.environ.get("AB_GATEWAY_URL", "http://gateway:8000")
 AGENT_ID = os.environ.get("AB_AGENT_ID", "executive.cmo_agent")
+CLIENT_SECRET = os.environ.get("AB_OIDC_CLIENT_SECRET", "cmo-secret")
 
 
 @app.post("/act")
 def act() -> dict[str, Any]:
-    token = issue_token(AGENT_ID)
+    token = fetch_token(AGENT_ID, CLIENT_SECRET)  # client-credentials from Keycloak
     decision = {
         "decision_id": f"decision_{uuid.uuid4().hex[:8]}",
         "title": "Increase paid acquisition for Segment A",

@@ -1,5 +1,5 @@
 ---
-status: accepted (interim)
+status: superseded by ADR-0004
 ---
 
 # Walking skeleton uses a minimal custom JWT issuer; Keycloak/SPIFFE deferred

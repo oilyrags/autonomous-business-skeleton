@@ -1,6 +1,7 @@
 """Slice 03 — a revoked agent token fails immediately (independent of expiry)."""
 
 import uuid
+from collections.abc import Callable
 
 from fastapi.testclient import TestClient
 
@@ -8,7 +9,6 @@ from ab_agent.runtime import record_decision
 from ab_audit import store
 from ab_common import db
 from ab_identity import revocation
-from ab_identity.tokens import issue_token
 
 AGENT = "executive.cmo_agent"
 
@@ -22,8 +22,10 @@ def _decision(title: str = "x") -> dict[str, object]:
     }
 
 
-def test_revoked_token_fails_on_next_call(gateway_client: TestClient, clean_db: None) -> None:
-    token = issue_token(AGENT)
+def test_revoked_token_fails_on_next_call(
+    gateway_client: TestClient, clean_db: None, make_token: Callable[[str], str]
+) -> None:
+    token = make_token(AGENT)
 
     # Works before revocation.
     first = record_decision(gateway_client, token, _decision())
@@ -46,9 +48,11 @@ def test_revoked_token_fails_on_next_call(gateway_client: TestClient, clean_db: 
     assert store.verify_chain() is True
 
 
-def test_other_agents_unaffected_by_a_revocation(gateway_client: TestClient, clean_db: None) -> None:
+def test_other_agents_unaffected_by_a_revocation(
+    gateway_client: TestClient, clean_db: None, make_token: Callable[[str], str]
+) -> None:
     revocation.revoke("executive.intern_agent")  # someone else
 
-    token = issue_token(AGENT)
+    token = make_token(AGENT)
     resp = record_decision(gateway_client, token, _decision())
     assert resp.status_code == 200

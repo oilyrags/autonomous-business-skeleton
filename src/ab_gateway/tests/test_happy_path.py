@@ -17,7 +17,6 @@ from ab_audit import store
 from ab_audit.consumer import consume_agent_decisions
 from ab_common import bus, db
 from ab_common.config import settings
-from ab_identity.tokens import issue_token
 
 AGENT = "executive.cmo_agent"
 
@@ -58,9 +57,11 @@ def _consume_for_id(
     return found
 
 
-def test_agent_records_decision_end_to_end(gateway_client: TestClient, clean_db: None) -> None:
+def test_agent_records_decision_end_to_end(
+    gateway_client: TestClient, clean_db: None, make_token: Callable[[str], str]
+) -> None:
     decision_id = f"decision_{uuid.uuid4().hex[:8]}"
-    token = issue_token(AGENT)
+    token = make_token(AGENT)
     decision = {
         "decision_id": decision_id,
         "title": "Increase paid acquisition for Segment A",

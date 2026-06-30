@@ -1,29 +1,19 @@
-"""identity service HTTP API: issue agent tokens."""
+"""identity service HTTP API.
+
+Token issuance now lives in Keycloak (ADR-0004); this service owns **revocation**
+— the source of truth the gateway checks on every call (slice 03).
+"""
 
 from fastapi import FastAPI
 from pydantic import BaseModel
 
 from ab_identity import revocation
-from ab_identity.tokens import issue_token
 
 app = FastAPI(title="ab-identity")
 
 
-class TokenRequest(BaseModel):
-    agent_id: str
-
-
-class TokenResponse(BaseModel):
-    token: str
-
-
 class RevokeRequest(BaseModel):
     agent_id: str
-
-
-@app.post("/tokens", response_model=TokenResponse)
-def create_token(req: TokenRequest) -> TokenResponse:
-    return TokenResponse(token=issue_token(req.agent_id))
 
 
 @app.post("/revoke")

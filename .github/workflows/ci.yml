@@ -22,8 +22,15 @@ jobs:
           uv run ruff format --check src
       - name: Typecheck
         run: uv run mypy
-      - name: Start infra (OPA + Redpanda + Postgres)
-        run: docker compose up -d --wait opa redpanda postgres
+      - name: Start infra (OPA + Redpanda + Postgres + Keycloak)
+        run: docker compose up -d --wait opa redpanda postgres keycloak
+      - name: Wait for Keycloak realm
+        run: |
+          for i in $(seq 1 90); do
+            curl -fsS http://localhost:18083/realms/ab/protocol/openid-connect/certs >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          echo "Keycloak realm not ready" && exit 1
       - name: Test
         run: uv run pytest
       - name: Stop infra
@@ -36,6 +43,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build images and bring up the full stack
         run: docker compose up -d --build --wait
+      - name: Wait for Keycloak realm
+        run: |
+          for i in $(seq 1 90); do
+            curl -fsS http://localhost:18083/realms/ab/protocol/openid-connect/certs >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          echo "Keycloak realm not ready" && exit 1
       - name: Smoke test (containerized end-to-end)
         run: |
           set -euo pipefail

@@ -48,6 +48,18 @@ services:
       timeout: 3s
       retries: 5
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./config/keycloak:/opt/keycloak/data/import:ro
+    # No healthcheck (the Keycloak image lacks curl/bash for one); dependents use
+    # service_started and readiness is polled by `make wait-idp` / the test fixture.
+    ports: ["18083:8080"]
+
   # --- application services (one shared image, per-service command) ---
   identity:
     build: &svc_build
@@ -58,7 +70,6 @@ services:
       AB_PG_DSN: postgresql://ab:ab@postgres:5432/ab
       AB_OPA_URL: http://opa:8181
       AB_KAFKA: redpanda:9092
-      AB_JWT_SECRET: dev-secret-change-me-in-prod-0123456789abcdef
     command: ["python", "-m", "uvicorn", "ab_identity.app:app", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["18001:8000"]
     healthcheck: &svc_health
@@ -72,7 +83,9 @@ services:
   gateway:
     build: *svc_build
     image: ab-skeleton-svc
-    environment: *svc_env
+    environment:
+      <<: *svc_env
+      AB_OIDC_JWKS_URL: http://keycloak:8080/realms/ab/protocol/openid-connect/certs
     command: ["python", "-m", "uvicorn", "ab_gateway.app:app", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["18080:8000"]
     healthcheck: *svc_health
@@ -80,6 +93,7 @@ services:
       opa: {condition: service_healthy}
       redpanda: {condition: service_healthy}
       postgres: {condition: service_healthy}
+      keycloak: {condition: service_started}
 
   killswitch:
     build: *svc_build
@@ -111,8 +125,11 @@ services:
     environment:
       <<: *svc_env
       AB_GATEWAY_URL: http://gateway:8000
+      AB_OIDC_TOKEN_URL: http://keycloak:8080/realms/ab/protocol/openid-connect/token
+      AB_OIDC_CLIENT_SECRET: cmo-secret
     command: ["python", "-m", "uvicorn", "ab_agent.app:app", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["18090:8000"]
     healthcheck: *svc_health
     depends_on:
       gateway: {condition: service_healthy}
+      keycloak: {condition: service_started}

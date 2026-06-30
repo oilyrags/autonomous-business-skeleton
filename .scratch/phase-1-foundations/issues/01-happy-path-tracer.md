@@ -1,6 +1,6 @@
 # 01 — Happy-path tracer: authenticated agent records a Decision end-to-end
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -19,3 +19,16 @@ This proves identity + gateway + OPA(allow) + tool + persistence + audit(hash ch
 ## Blocked by
 
 - 00 — Scaffold
+
+## Comments
+
+**Done (2026-06-30).** Implemented + verified end-to-end against the live stack; all acceptance criteria pass (`test_agent_records_decision_end_to_end`). `make check` green: ruff + mypy(strict, 23 files) + pytest (3 passed).
+
+Built: `ab_identity` (HS256 JWT issue/validate), `ab_gateway` (`POST /tool-call`: token → kill-switch hook → stub model → OPA allow → tool dispatch → audit → emit), `ab_audit` (hash-chained store + read API + `AgentDecisionMade` consumer), `decision_registry.write` tool, `ab_agent` runtime, `ab_common` (config/db/bus), OPA allow rule. Test drives the gateway seam; observes via audit store + a seek-to-end Redpanda consumer.
+
+Deviations / decisions (carry forward):
+- **Ports remapped** to dodge a developer's local services: Postgres host **55432**, Redpanda external listener **19092** (dual listeners: internal `redpanda:9092` for in-container, external `localhost:19092` for host). OPA stays 8181.
+- **Services run in-process** (FastAPI apps via TestClient) against real OPA/Redpanda/Postgres for tests. Containerizing the 5 services (Dockerfiles + uvicorn in compose, replacing the `sleep` placeholders) is deferred to a deploy slice.
+- Kill-switch check is wired into the gateway but stubbed `is_killed -> False` (slice 04 makes it real).
+- CI now boots the compose infra and runs the integration test.
+

@@ -22,5 +22,10 @@ jobs:
           uv run ruff format --check src
       - name: Typecheck
         run: uv run mypy
+      - name: Start infra (OPA + Redpanda + Postgres)
+        run: docker compose up -d --wait opa redpanda postgres
       - name: Test
         run: uv run pytest
+      - name: Stop infra
+        if: always()
+        run: docker compose down -v

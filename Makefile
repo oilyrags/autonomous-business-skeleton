@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp
+.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault
 
 sync:        ## install the uv workspace
 	uv sync
@@ -6,11 +6,17 @@ sync:        ## install the uv workspace
 build:       ## build the service image
 	docker compose build
 
-up:          ## build + bring up the full stack (infra + 5 services)
-	docker compose up -d --build --wait
+seed-vault:  ## write agent client secrets into Vault (KV v2)
+	docker compose exec -T vault vault kv put secret/ab/clients \
+		executive.cmo_agent=cmo-secret executive.intern_agent=intern-secret
 
-up-infra:    ## bring up only infra (OPA, Redpanda, Postgres, Keycloak) — for in-process tests
-	docker compose up -d --wait opa redpanda postgres keycloak
+up:          ## build + bring up the full stack (infra + 5 services) + seed Vault
+	docker compose up -d --build --wait
+	$(MAKE) seed-vault
+
+up-infra:    ## bring up only infra (OPA, Redpanda, Postgres, Keycloak, Vault) + seed — for in-process tests
+	docker compose up -d --wait opa redpanda postgres keycloak vault
+	$(MAKE) seed-vault
 
 wait-idp:    ## block until the Keycloak realm is serving JWKS
 	@echo "waiting for keycloak realm 'ab'..."

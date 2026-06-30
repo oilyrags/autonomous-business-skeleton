@@ -20,6 +20,14 @@ class Settings:
     oidc_jwks_url: str = os.environ.get(
         "AB_OIDC_JWKS_URL", "http://localhost:18083/realms/ab/protocol/openid-connect/certs"
     )
+    # iss is the fixed Keycloak frontend URL (same string host or in-container, since
+    # KC_HOSTNAME pins it); aud is set by an audience mapper on each client.
+    oidc_issuer: str = os.environ.get("AB_OIDC_ISSUER", "http://localhost:18083/realms/ab")
+    oidc_audience: str = os.environ.get("AB_OIDC_AUDIENCE", "ab-gateway")
+    # Vault (dev) holds agent client secrets. Host default for tests; in-container
+    # services override AB_VAULT_ADDR to reach Vault by service name.
+    vault_addr: str = os.environ.get("AB_VAULT_ADDR", "http://localhost:18200")
+    vault_token: str = os.environ.get("AB_VAULT_TOKEN", "root")
 
 
 settings = Settings()

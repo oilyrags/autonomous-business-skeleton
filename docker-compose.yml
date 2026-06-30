@@ -48,12 +48,32 @@ services:
       timeout: 3s
       retries: 5
 
+  vault:
+    image: hashicorp/vault:1.18
+    cap_add: ["IPC_LOCK"]
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_TOKEN: root
+    command: ["server", "-dev"]
+    ports: ["18200:8200"]
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Pin the frontend URL so the token `iss` is stable regardless of whether the
+      # token was fetched from the host (localhost:18083) or in-container (keycloak:8080).
+      KC_HOSTNAME: http://localhost:18083
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
     volumes:
       - ./config/keycloak:/opt/keycloak/data/import:ro
     # No healthcheck (the Keycloak image lacks curl/bash for one); dependents use
@@ -70,6 +90,8 @@ services:
       AB_PG_DSN: postgresql://ab:ab@postgres:5432/ab
       AB_OPA_URL: http://opa:8181
       AB_KAFKA: redpanda:9092
+      AB_VAULT_ADDR: http://vault:8200
+      AB_VAULT_TOKEN: root
     command: ["python", "-m", "uvicorn", "ab_identity.app:app", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["18001:8000"]
     healthcheck: &svc_health
@@ -126,10 +148,10 @@ services:
       <<: *svc_env
       AB_GATEWAY_URL: http://gateway:8000
       AB_OIDC_TOKEN_URL: http://keycloak:8080/realms/ab/protocol/openid-connect/token
-      AB_OIDC_CLIENT_SECRET: cmo-secret
     command: ["python", "-m", "uvicorn", "ab_agent.app:app", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["18090:8000"]
     healthcheck: *svc_health
     depends_on:
       gateway: {condition: service_healthy}
       keycloak: {condition: service_started}
+      vault: {condition: service_healthy}

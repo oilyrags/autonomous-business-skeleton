@@ -11,13 +11,8 @@ from fastapi.testclient import TestClient
 
 from ab_common import db
 from ab_common.config import settings
+from ab_common.secrets import get_client_secret
 from ab_identity.oidc import fetch_token
-
-# Dev client secrets from config/keycloak/ab-realm.json.
-_CLIENT_SECRETS = {
-    "executive.cmo_agent": "cmo-secret",
-    "executive.intern_agent": "intern-secret",
-}
 
 
 def _reachable(host: str, port: int) -> bool:
@@ -43,18 +38,27 @@ def _keycloak_ready(timeout: float = 90.0) -> bool:
 @pytest.fixture(scope="session")
 def infra() -> None:
     if not (
-        _reachable("localhost", 55432) and _reachable("localhost", 8181) and _reachable("localhost", 19092)
+        _reachable("localhost", 55432)
+        and _reachable("localhost", 8181)
+        and _reachable("localhost", 19092)
+        and _reachable("localhost", 18200)
     ):
-        pytest.skip("infra not reachable — run `make up-infra` (Postgres 55432, OPA 8181, Redpanda 19092)")
+        pytest.skip(
+            "infra not reachable — run `make up-infra` (PG 55432, OPA 8181, Redpanda 19092, Vault 18200)"
+        )
     if not _keycloak_ready():
         pytest.skip("Keycloak not ready — run `make up-infra` and wait for realm 'ab'")
+    try:
+        get_client_secret("executive.cmo_agent")
+    except Exception:  # noqa: BLE001
+        pytest.skip("Vault not seeded — run `make seed-vault`")
     db.init_db()
 
 
 @pytest.fixture
 def make_token(infra: None) -> Callable[[str], str]:
     def _token(agent_id: str) -> str:
-        return fetch_token(agent_id, _CLIENT_SECRETS[agent_id])
+        return fetch_token(agent_id, get_client_secret(agent_id))
 
     return _token
 

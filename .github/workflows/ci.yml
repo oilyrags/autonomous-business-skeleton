@@ -22,8 +22,12 @@ jobs:
           uv run ruff format --check src
       - name: Typecheck
         run: uv run mypy
-      - name: Start infra (OPA + Redpanda + Postgres + Keycloak)
-        run: docker compose up -d --wait opa redpanda postgres keycloak
+      - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
+        run: docker compose up -d --wait opa redpanda postgres keycloak vault
+      - name: Seed Vault
+        run: |
+          docker compose exec -T vault vault kv put secret/ab/clients \
+            executive.cmo_agent=cmo-secret executive.intern_agent=intern-secret
       - name: Wait for Keycloak realm
         run: |
           for i in $(seq 1 90); do
@@ -43,6 +47,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build images and bring up the full stack
         run: docker compose up -d --build --wait
+      - name: Seed Vault
+        run: |
+          docker compose exec -T vault vault kv put secret/ab/clients \
+            executive.cmo_agent=cmo-secret executive.intern_agent=intern-secret
       - name: Wait for Keycloak realm
         run: |
           for i in $(seq 1 90); do

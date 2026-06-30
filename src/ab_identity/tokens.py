@@ -1,8 +1,8 @@
 """Validate agent tokens issued by Keycloak (OIDC, RS256) — see ADR-0004.
 
-The gateway verifies the token signature against Keycloak's JWKS and reads the
-``azp`` claim (the client_id) as the principal. Issuer/audience are not verified
-in the skeleton (documented simplification in ADR-0004).
+The gateway verifies the token signature against Keycloak's JWKS, checks ``iss``
+(the pinned Keycloak frontend URL) and ``aud`` (``ab-gateway``, set by an audience
+mapper) and expiry, and reads the ``azp`` claim (the client_id) as the principal.
 """
 
 import jwt
@@ -27,7 +27,9 @@ def validate_token(token: str) -> str:
             token,
             signing_key.key,
             algorithms=["RS256"],
-            options={"verify_aud": False, "verify_iss": False},
+            issuer=settings.oidc_issuer,
+            audience=settings.oidc_audience,
+            options={"verify_iss": True, "verify_aud": True, "verify_exp": True},
         )
     except Exception as exc:  # jwt errors or JWKS fetch failures
         raise InvalidToken(str(exc)) from exc

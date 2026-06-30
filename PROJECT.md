@@ -5,7 +5,7 @@
 - **Last updated:** 2026-06-30
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
-- **Git repo:** no (not initialized)
+- **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
 
 ---
 
@@ -135,6 +135,7 @@ autonomous-business/
 |---|---|---|
 | 2026-06-30 | Opus 4.8 | Created full v1.0 architecture package (19 artifacts) in `architecture/`. JSON + YAML validated. |
 | 2026-06-30 | Opus 4.8 | Created this PROJECT.md tracker. |
+| 2026-06-30 | Opus 4.8 | Initialized git repo, added README + .gitignore, pushed to GitHub (oilyrags/autonomous-business-skeleton, main). |
 
 ---
 

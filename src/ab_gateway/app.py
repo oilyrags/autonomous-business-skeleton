@@ -19,6 +19,7 @@ from ab_common import bus, db
 from ab_common.config import settings
 from ab_gateway import model_gateway, opa
 from ab_gateway.tools import TOOLS
+from ab_identity import revocation
 from ab_identity.tokens import InvalidToken, validate_token
 from ab_killswitch.state import is_killed
 from ab_schemas.events import AgentDecisionMade, ApprovalStatus, DataClassification, SubjectRef
@@ -59,7 +60,11 @@ def tool_call(
 
     resource = str(req.args.get("decision_id", req.tool))
 
-    # 2. Kill switch (fail-closed).
+    # 2. Revocation (source of truth in identity, outside the gateway).
+    if revocation.is_revoked(principal):
+        return _deny(principal, req.tool, resource, "credential revoked", 403)
+
+    # 3. Kill switch (fail-closed).
     if is_killed(principal):
         return _deny(principal, req.tool, resource, "kill switch active", 403)
 

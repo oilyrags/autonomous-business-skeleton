@@ -1,6 +1,6 @@
 # 03 — Revoked agent token fails immediately
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -15,3 +15,7 @@ Revocation independent of token expiry. After an agent is authenticated and work
 ## Blocked by
 
 - 01 — Happy-path tracer
+
+## Comments
+
+**Done (2026-06-30).** `ab_identity.revocation` (Postgres `revoked_principals`) + `POST /revoke`; gateway checks `is_revoked(principal)` on every call right after authentication and denies (403 "credential revoked") + audits. Tests: revoked token fails on the next call with no side effect (chain intact); other agents unaffected. ruff + mypy(24 files) + 7 tests green.

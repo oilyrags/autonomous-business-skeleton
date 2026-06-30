@@ -7,9 +7,8 @@ events all hold together. Observes via the audit store and a bus consumer.
 import json
 import time
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 
-import pytest
 from confluent_kafka import Consumer, TopicPartition
 from fastapi.testclient import TestClient
 
@@ -21,14 +20,6 @@ from ab_common.config import settings
 from ab_identity.tokens import issue_token
 
 AGENT = "executive.cmo_agent"
-
-
-@pytest.fixture
-def gateway_client(infra: None) -> Iterator[TestClient]:
-    from ab_gateway.app import app
-
-    with TestClient(app) as client:  # startup runs init_db + ensure_topic
-        yield client
 
 
 def _consume_for_id(

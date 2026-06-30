@@ -28,6 +28,23 @@ _DDL = [
         hash         text NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS revoked_principals (
+        principal    text PRIMARY KEY,
+        revoked_at   timestamptz NOT NULL DEFAULT now()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS kill_switch (
+        id            bigserial PRIMARY KEY,
+        scope         text NOT NULL,
+        target_id     text,
+        active        boolean NOT NULL DEFAULT true,
+        reason        text NOT NULL,
+        activated_by  text NOT NULL,
+        activated_at  timestamptz NOT NULL DEFAULT now()
+    )
+    """,
 ]
 
 

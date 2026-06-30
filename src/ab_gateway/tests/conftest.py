@@ -4,6 +4,7 @@ import socket
 from collections.abc import Iterator
 
 import pytest
+from fastapi.testclient import TestClient
 
 from ab_common import db
 
@@ -30,5 +31,15 @@ def clean_db(infra: None) -> Iterator[None]:
     with db.connect() as conn:
         conn.execute("TRUNCATE decisions")
         conn.execute("TRUNCATE audit_log")
+        conn.execute("TRUNCATE revoked_principals")
+        conn.execute("TRUNCATE kill_switch")
         conn.commit()
     yield
+
+
+@pytest.fixture
+def gateway_client(infra: None) -> Iterator[TestClient]:
+    from ab_gateway.app import app
+
+    with TestClient(app) as client:  # startup runs init_db + ensure_topic
+        yield client

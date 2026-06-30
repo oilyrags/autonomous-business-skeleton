@@ -29,3 +29,27 @@ jobs:
       - name: Stop infra
         if: always()
         run: docker compose down -v
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images and bring up the full stack
+        run: docker compose up -d --build --wait
+      - name: Smoke test (containerized end-to-end)
+        run: |
+          set -euo pipefail
+          resp=$(curl -fsS -X POST http://localhost:18090/act)
+          echo "$resp"
+          echo "$resp" | python3 -c "import sys, json; d = json.load(sys.stdin); assert d['gateway_status'] == 200, d; assert d['body']['status'] == 'ok', d"
+          curl -fsS "http://localhost:18081/audit?action=decision_registry.write" \
+            | python3 -c "import sys, json; rows = json.load(sys.stdin); assert any(r['outcome'] == 'allow' for r in rows), rows"
+          curl -fsS http://localhost:18081/audit/verify \
+            | python3 -c "import sys, json; assert json.load(sys.stdin)['intact'] is True"
+          echo "smoke OK"
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --tail=100
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,330 @@
+asyncapi: 3.0.0
+info:
+  title: Autonomous AI-First Business — Event Backbone
+  version: 1.0.0
+  description: >
+    Domain-event contracts for the autonomous business skeleton. Transport is a
+    Kafka-compatible log (Kafka/Redpanda). Delivery is at-least-once; consumers
+    are idempotent by `eventId`. Every message uses the common envelope and
+    carries a data classification. Personal-data and financial messages carry
+    additional governance fields. See 04_event_catalog.md for the human index.
+  contact:
+    name: Chief Architect Agent
+  tags:
+    - name: personal
+      description: Carries personal data; subject to GDPR + DSAR propagation.
+    - name: financial
+      description: Affects or references the ledger / money movement.
+
+defaultContentType: application/json
+
+servers:
+  production:
+    host: kafka.internal:9092
+    protocol: kafka
+    description: Primary event log (Redpanda). Topics are partitioned by subjectRef.id.
+    security:
+      - $ref: '#/components/securitySchemes/mtls'
+
+channels:
+  consentGranted:
+    address: crm.consent.granted
+    messages:
+      ConsentGranted:
+        $ref: '#/components/messages/ConsentGranted'
+  consentRevoked:
+    address: crm.consent.revoked
+    messages:
+      ConsentRevoked:
+        $ref: '#/components/messages/ConsentRevoked'
+  invoiceIssued:
+    address: finance.invoice.issued
+    messages:
+      InvoiceIssued:
+        $ref: '#/components/messages/InvoiceIssued'
+  paymentReceived:
+    address: finance.payment.received
+    messages:
+      PaymentReceived:
+        $ref: '#/components/messages/PaymentReceived'
+  dsarReceived:
+    address: compliance.dsar.received
+    messages:
+      DataSubjectRequestReceived:
+        $ref: '#/components/messages/DataSubjectRequestReceived'
+  dataDeletionCompleted:
+    address: compliance.dsar.deletion_completed
+    messages:
+      DataDeletionCompleted:
+        $ref: '#/components/messages/DataDeletionCompleted'
+  agentDecisionMade:
+    address: executive.decision.made
+    messages:
+      AgentDecisionMade:
+        $ref: '#/components/messages/AgentDecisionMade'
+  approvalRequired:
+    address: workflow.approval.required
+    messages:
+      ApprovalRequired:
+        $ref: '#/components/messages/ApprovalRequired'
+  killSwitchActivated:
+    address: security.killswitch.activated
+    messages:
+      KillSwitchActivated:
+        $ref: '#/components/messages/KillSwitchActivated'
+
+operations:
+  publishConsentGranted:
+    action: send
+    channel:
+      $ref: '#/channels/consentGranted'
+  onConsentRevoked:
+    action: receive
+    channel:
+      $ref: '#/channels/consentRevoked'
+  publishInvoiceIssued:
+    action: send
+    channel:
+      $ref: '#/channels/invoiceIssued'
+  onDsarReceived:
+    action: receive
+    channel:
+      $ref: '#/channels/dsarReceived'
+  publishKillSwitch:
+    action: send
+    channel:
+      $ref: '#/channels/killSwitchActivated'
+
+components:
+  securitySchemes:
+    mtls:
+      type: X509
+      description: Mutual TLS; producer/consumer principals issued by Security context.
+
+  schemas:
+    Envelope:
+      type: object
+      required: [eventName, eventId, occurredAt, producer, schemaVersion, dataClassification, subjectRef]
+      properties:
+        eventName: { type: string }
+        eventId: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        producer: { type: string, description: "context.aggregate id, e.g. finance.billing" }
+        traceId: { type: string, description: OpenTelemetry trace id }
+        schemaVersion: { type: string, default: "1.0.0" }
+        dataClassification:
+          type: string
+          enum: [public, internal, confidential, personal, financial]
+        subjectRef:
+          type: object
+          required: [type, id]
+          properties:
+            type: { type: string, enum: [Customer, Contact, Account, Invoice, Ticket, Decision, Vendor, Worker, System] }
+            id: { type: string }
+
+    PersonalDataGovernance:
+      type: object
+      description: Required block for any message classified `personal`.
+      required: [lawfulBasis, dsarImpact, retentionPolicy]
+      properties:
+        lawfulBasis:
+          type: string
+          enum: [consent, contract, legitimate_interest, legal_obligation, vital_interest, public_task]
+        dsarImpact:
+          type: array
+          items: { type: string, enum: [access, erasure, portability, rectification, objection, restriction] }
+        retentionPolicy: { type: string }
+
+    FinancialGovernance:
+      type: object
+      description: Required block for any message classified `financial`.
+      required: [ledgerImpact]
+      properties:
+        ledgerImpact:
+          type: string
+          description: Description of debit/credit effect, or "none".
+        idempotencyKey: { type: string }
+
+  messages:
+    ConsentGranted:
+      name: ConsentGranted
+      title: Consent granted
+      tags: [{ name: personal }]
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/PersonalDataGovernance'
+          - type: object
+            required: [contactId, purpose, channel, grantedAt]
+            properties:
+              contactId: { type: string }
+              purpose: { type: string }
+              channel: { type: string, enum: [email, sms, phone, postal, product] }
+              grantedAt: { type: string, format: date-time }
+      examples:
+        - name: marketingEmailConsent
+          payload:
+            eventName: ConsentGranted
+            eventId: "3f1c...uuid"
+            occurredAt: "2026-06-30T10:00:00Z"
+            producer: crm.marketing
+            schemaVersion: "1.0.0"
+            dataClassification: personal
+            subjectRef: { type: Contact, id: "contact_123" }
+            lawfulBasis: consent
+            dsarImpact: [access, portability]
+            retentionPolicy: consent_retention
+            contactId: "contact_123"
+            purpose: "Lifecycle email communication"
+            channel: email
+            grantedAt: "2026-06-30T10:00:00Z"
+
+    ConsentRevoked:
+      name: ConsentRevoked
+      title: Consent revoked
+      tags: [{ name: personal }]
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/PersonalDataGovernance'
+          - type: object
+            required: [contactId, purpose, channel, revokedAt]
+            properties:
+              contactId: { type: string }
+              purpose: { type: string }
+              channel: { type: string }
+              revokedAt: { type: string, format: date-time }
+
+    InvoiceIssued:
+      name: InvoiceIssued
+      title: Invoice issued
+      tags: [{ name: financial }, { name: personal }]
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/FinancialGovernance'
+          - type: object
+            required: [invoiceId, accountId, amount, currency, dueDate, lineItems]
+            properties:
+              invoiceId: { type: string }
+              accountId: { type: string }
+              amount: { type: number }
+              currency: { type: string, default: EUR }
+              dueDate: { type: string, format: date }
+              lineItems:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    sku: { type: string }
+                    qty: { type: integer }
+                    unitPrice: { type: number }
+
+    PaymentReceived:
+      name: PaymentReceived
+      title: Payment received
+      tags: [{ name: financial }]
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/FinancialGovernance'
+          - type: object
+            required: [paymentId, invoiceId, amount, currency, receivedAt]
+            properties:
+              paymentId: { type: string }
+              invoiceId: { type: string }
+              amount: { type: number }
+              currency: { type: string }
+              receivedAt: { type: string, format: date-time }
+
+    DataSubjectRequestReceived:
+      name: DataSubjectRequestReceived
+      title: DSAR received
+      tags: [{ name: personal }]
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/PersonalDataGovernance'
+          - type: object
+            required: [dsarId, rightRequested, subjectId, receivedAt, dueBy]
+            properties:
+              dsarId: { type: string }
+              rightRequested:
+                type: string
+                enum: [access, erasure, portability, rectification, objection, restriction]
+              subjectId: { type: string }
+              receivedAt: { type: string, format: date-time }
+              dueBy: { type: string, format: date, description: "Statutory deadline, e.g. +30 days" }
+
+    DataDeletionCompleted:
+      name: DataDeletionCompleted
+      title: Data deletion completed
+      tags: [{ name: personal }]
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/PersonalDataGovernance'
+          - type: object
+            required: [dsarId, subjectId, contextsConfirmed, completedAt]
+            properties:
+              dsarId: { type: string }
+              subjectId: { type: string }
+              contextsConfirmed:
+                type: array
+                items: { type: string }
+                description: Every personal-data context that confirmed erasure/anonymization.
+              legalHoldExclusions:
+                type: array
+                items: { type: string }
+                description: Data retained under legal hold, with hold reference.
+              completedAt: { type: string, format: date-time }
+
+    AgentDecisionMade:
+      name: AgentDecisionMade
+      title: Agent decision made
+      tags: [{ name: confidential }]
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [decisionId, agentId, authorityLevel, approvalStatus]
+            properties:
+              decisionId: { type: string }
+              agentId: { type: string }
+              authorityLevel: { type: integer, minimum: 0, maximum: 5 }
+              approvalStatus:
+                type: string
+                enum: [approved, rejected, pending, autonomous_within_policy]
+              art22Significant: { type: boolean, default: false }
+
+    ApprovalRequired:
+      name: ApprovalRequired
+      title: Approval required
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [approvalId, action, requestedBy, approverRole, authorityMatrixRef]
+            properties:
+              approvalId: { type: string }
+              action: { type: string }
+              requestedBy: { type: string }
+              approverRole: { type: string }
+              authorityMatrixRef: { type: string, description: "Row id in 06_autonomy_authority_matrix" }
+              context: { type: object, description: Full decision context for the approver. }
+
+    KillSwitchActivated:
+      name: KillSwitchActivated
+      title: Kill switch activated
+      tags: [{ name: confidential }]
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [scope, reason, activatedBy, activatedAt]
+            properties:
+              scope: { type: string, enum: [global, context, agent], description: Blast radius. }
+              targetId: { type: string, description: agentId/context if not global. }
+              reason: { type: string }
+              activatedBy: { type: string }
+              activatedAt: { type: string, format: date-time }

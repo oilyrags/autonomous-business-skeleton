@@ -1,0 +1,92 @@
+%% 01 — Context Map
+%% Relationship legend (DDD strategic patterns):
+%%   U  = Upstream,  D = Downstream
+%%   OHS = Open Host Service (published API/event contract)
+%%   ACL = Anti-Corruption Layer (downstream translates upstream model)
+%%   CF  = Conformist (downstream accepts upstream model as-is)
+%%   PL  = Published Language (shared schema, e.g. domain events)
+%%   SK  = Shared Kernel (small shared model, used sparingly)
+%% Edges flow Upstream --> Downstream. Most integration is event-driven (PL) over the backbone.
+
+flowchart TB
+
+  subgraph GOV["Governance & Platform (shared kernel + OHS)"]
+    SEC["Security, Risk & Trust\n(Agent identity, IAM, Policy-as-Code, Kill Switch)"]
+    AIP["AI Model Ops & Agent Platform\n(Model Gateway, Tool Registry, Evals)"]
+    WF["Workflow Orchestration\n(Temporal sagas, approvals)"]
+    DATA["Data Platform & Intelligence\n(Lakehouse, Semantic Layer, Vector, KG)"]
+    COMP["Compliance, Privacy & Legal\n(DSAR, Consent, DPIA, Evidence)"]
+    KNOW["Knowledge Management\n(RAG sources, provenance)"]
+  end
+
+  EXE["Executive Strategy &\nDecision Intelligence (C-Suite)"]
+  PROD["Product Engineering"]
+  QA["QA, Reliability &\nRelease Management"]
+  CRM["CRM & Marketing"]
+  SALES["Sales & Revenue Operations"]
+  FIN["Finance, Accounting,\nBilling & FP&A"]
+  CS["Customer Service &\nCustomer Success"]
+  GROW["Experimentation & Growth"]
+  VEND["Vendor & Procurement"]
+  PPL["People & Workforce"]
+
+  %% --- Security is upstream to everyone (agent identity, policy) ---
+  SEC -- "OHS/PL: AgentIdentity, PolicyDecision" --> AIP
+  SEC -- "OHS: authZ, kill-switch" --> WF
+  SEC -. "PL: PolicyViolationDetected" .-> COMP
+
+  %% --- AI Platform serves all domain agents (CF on model contracts) ---
+  AIP -- "OHS: model_gateway, tool_registry (CF)" --> EXE
+  AIP -- "OHS (CF)" --> PROD
+  AIP -- "OHS (CF)" --> CRM
+  AIP -- "OHS (CF)" --> SALES
+  AIP -- "OHS (CF)" --> FIN
+  AIP -- "OHS (CF)" --> CS
+
+  %% --- Data Platform: every context publishes events, consumes products via ACL ---
+  CRM -- "PL: domain events" --> DATA
+  SALES -- "PL: domain events" --> DATA
+  FIN -- "PL: domain events" --> DATA
+  CS -- "PL: domain events" --> DATA
+  PROD -- "PL: domain events" --> DATA
+  DATA -- "OHS: semantic metrics, RAG features (ACL)" --> EXE
+  DATA -- "OHS: customer health, churn scores (ACL)" --> CS
+  KNOW -- "OHS: grounded sources w/ provenance" --> CS
+  KNOW -- "OHS: grounded sources" --> EXE
+
+  %% --- Revenue value stream ---
+  CRM -- "PL: LeadCaptured, ConsentGranted (ACL @ Sales)" --> SALES
+  SALES -- "PL: DealWon, ContractSigned (ACL @ Finance)" --> FIN
+  SALES -- "PL: DealWon" --> CS
+  FIN -- "PL: InvoiceIssued, PaymentReceived" --> CS
+  FIN -- "PL: InvoiceIssued" --> CRM
+
+  %% --- Product value stream ---
+  EXE -- "OHS: strategy, OKRs (CF)" --> PROD
+  PROD -- "PL: ReleasePromoted, FeatureShipped" --> QA
+  QA -- "PL: BuildSucceeded, IncidentDetected (ACL @ CS)" --> CS
+  GROW -- "PL: ExperimentConcluded (ACL @ Prod/CRM)" --> PROD
+  GROW -- "PL: ExperimentConcluded" --> CRM
+
+  %% --- Compliance is upstream policy authority over personal-data domains ---
+  COMP -- "OHS: SubjectRights API, lawful-basis (CF, mandatory)" --> CRM
+  COMP -- "OHS: SubjectRights API (CF, mandatory)" --> SALES
+  COMP -- "OHS: SubjectRights API (CF, mandatory)" --> CS
+  COMP -- "OHS: SubjectRights API (CF, mandatory)" --> FIN
+  COMP -- "OHS: SubjectRights API (CF, mandatory)" --> DATA
+
+  %% --- Finance is upstream to procurement & people for spend control ---
+  FIN -- "OHS: budget, spend caps (ACL)" --> VEND
+  FIN -- "OHS: payroll ledger (ACL)" --> PPL
+  VEND -- "PL: VendorOnboarded, ContractRenewal" --> SEC
+
+  %% --- Executive consumes everything, commands via OKRs/decisions ---
+  DATA -- "OHS: decision intelligence" --> EXE
+  FIN -- "OHS: three-statement, unit economics (ACL)" --> EXE
+  EXE -- "OHS/PL: DecisionMade, ApprovalRequired" --> WF
+  WF -- "orchestrates approvals across all" --> GOV
+
+  classDef gov fill:#1f2937,stroke:#9ca3af,color:#fff;
+  classDef stream fill:#0f766e,stroke:#5eead4,color:#fff;
+  class SEC,AIP,WF,DATA,COMP,KNOW gov;
+  class EXE,PROD,QA,CRM,SALES,FIN,CS,GROW,VEND,PPL stream;

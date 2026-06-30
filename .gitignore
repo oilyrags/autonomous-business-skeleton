@@ -1,0 +1,28 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Env / secrets (never commit)
+.env
+.env.*
+*.key
+*.pem
+secrets/
+
+# Build / deps (for future implementation phases)
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+build/
+target/
+
+# Claude Code local settings
+.claude/settings.local.json

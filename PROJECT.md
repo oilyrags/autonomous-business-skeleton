@@ -90,8 +90,8 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 
 ### After Phase 1 (choose next)
 - [x] **Containerize the 5 services** (slice 05): one Dockerfile, uvicorn per service in compose, `/health` checks, `make up`/`make smoke`. Verified end-to-end across containers. *(2026-06-30)*
+- [x] **Docker build + containerized smoke in CI** (new `docker` job: build all images, `up --build --wait`, assert agent→gateway 200 + allow audit + chain intact). Verified locally. *(2026-06-30)*
 - [ ] Real IdP (Keycloak/Zitadel + SPIFFE/mTLS — supersedes ADR-0003); Vault for secrets; real model providers behind the gateway.
-- [ ] Add the Docker image build to CI (currently CI runs the in-process suite against infra only).
 - [ ] Phase 2 — Core data (canonical model, data inventory, semantic layer) per `architecture/15_implementation_roadmap.md`.
 - [ ] Mirror `.scratch/phase-1-foundations/` issues to GitHub Issues once `gh` is installed.
 

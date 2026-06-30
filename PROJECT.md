@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-06-30 (real OIDC identity — Keycloak, slice 06)
+- **Last updated:** 2026-06-30 (OIDC hardened — iss/aud + Vault, slice 07)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
@@ -92,7 +92,8 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 - [x] **Containerize the 5 services** (slice 05): one Dockerfile, uvicorn per service in compose, `/health` checks, `make up`/`make smoke`. Verified end-to-end across containers. *(2026-06-30)*
 - [x] **Docker build + containerized smoke in CI** (new `docker` job: build all images, `up --build --wait`, assert agent→gateway 200 + allow audit + chain intact). Verified locally. *(2026-06-30)*
 - [x] **Real OIDC IdP (Keycloak)** (slice 06): RS256/JWKS validation, client-credentials, declarative realm; supersedes ADR-0003 (→ ADR-0004). Verified live (11 tests + smoke). *(2026-06-30)*
-- [ ] Remaining from "real identity": **SPIFFE/mTLS** service-to-service workload identity; **Vault** for secrets (client secrets currently in compose env); issuer/audience verification + production Keycloak mode (skeleton simplifications per ADR-0004).
+- [x] **OIDC hardening** (slice 07, ADR-0005): gateway verifies `iss` + `aud` (Keycloak hostname pinned, audience mapper); **Vault** (dev) holds client secrets, agent + tests fetch from Vault. Verified live. *(2026-06-30)*
+- [ ] Remaining from "real identity": **SPIFFE/mTLS** service-to-service workload identity (the open zero-trust item); production Keycloak/Vault modes.
 - [ ] Real model providers behind the gateway (vLLM / managed), replacing the stub.
 - [ ] Phase 2 — Core data (canonical model, data inventory, semantic layer) per `architecture/15_implementation_roadmap.md`.
 - [ ] Mirror `.scratch/phase-1-foundations/` issues to GitHub Issues once `gh` is installed.
@@ -184,6 +185,7 @@ autonomous-business/
 | 2026-06-30 | Opus 4.8 | Slice 05: containerized all 5 services (Dockerfile + uvicorn in compose, /health, agent POST /act, audit background consumer). `make up`/`make smoke` verify the chain end-to-end across containers. |
 | 2026-06-30 | Opus 4.8 | Added CI `docker` job (build + containerized smoke). |
 | 2026-06-30 | Opus 4.8 | Slice 06: real OIDC identity via Keycloak (RS256/JWKS, client-credentials, declarative realm). Supersedes ADR-0003 → ADR-0004; identity service → revocation only. 11 tests + smoke green with real tokens; CI waits for the realm. |
+| 2026-06-30 | Opus 4.8 | Slice 07 (ADR-0005): OIDC hardening — gateway verifies iss/aud (KC hostname pinned + audience mapper); Vault (dev) holds client secrets, agent+tests fetch from Vault. 11 tests + smoke green; CI seeds Vault. SPIFFE/mTLS still open. |
 
 ---
 

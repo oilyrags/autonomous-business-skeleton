@@ -36,6 +36,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="ab-gateway", lifespan=lifespan)
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 def _deny(principal: str, action: str, resource: str, reason: str, status: int) -> JSONResponse:
     audit.append(principal, action, resource, "deny", {"reason": reason})
     return JSONResponse(

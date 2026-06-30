@@ -19,3 +19,8 @@ class ActivateRequest(BaseModel):
 def activate(req: ActivateRequest) -> dict[str, str]:
     control.activate(req.scope, req.target_id, req.reason, req.activated_by)
     return {"status": "activated", "scope": req.scope, "target_id": req.target_id or "global"}
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}

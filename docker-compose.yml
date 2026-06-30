@@ -48,15 +48,71 @@ services:
       timeout: 3s
       retries: 5
 
-  # --- service placeholders (implemented in slices 01-04) ---
-  identity: &placeholder
-    image: python:3.12-slim
-    command: ["sleep", "infinity"]
+  # --- application services (one shared image, per-service command) ---
+  identity:
+    build: &svc_build
+      context: .
+      dockerfile: Dockerfile
+    image: ab-skeleton-svc
+    environment: &svc_env
+      AB_PG_DSN: postgresql://ab:ab@postgres:5432/ab
+      AB_OPA_URL: http://opa:8181
+      AB_KAFKA: redpanda:9092
+      AB_JWT_SECRET: dev-secret-change-me-in-prod-0123456789abcdef
+    command: ["python", "-m", "uvicorn", "ab_identity.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["18001:8000"]
+    healthcheck: &svc_health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  gateway:
+    build: *svc_build
+    image: ab-skeleton-svc
+    environment: *svc_env
+    command: ["python", "-m", "uvicorn", "ab_gateway.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["18080:8000"]
+    healthcheck: *svc_health
     depends_on:
       opa: {condition: service_healthy}
       redpanda: {condition: service_healthy}
       postgres: {condition: service_healthy}
-  gateway: *placeholder
-  killswitch: *placeholder
-  audit: *placeholder
-  agent: *placeholder
+
+  killswitch:
+    build: *svc_build
+    image: ab-skeleton-svc
+    environment: *svc_env
+    command: ["python", "-m", "uvicorn", "ab_killswitch.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["18002:8000"]
+    healthcheck: *svc_health
+    depends_on:
+      redpanda: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+
+  audit:
+    build: *svc_build
+    image: ab-skeleton-svc
+    environment:
+      <<: *svc_env
+      AB_AUDIT_CONSUMER: "1"
+    command: ["python", "-m", "uvicorn", "ab_audit.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["18081:8000"]
+    healthcheck: *svc_health
+    depends_on:
+      redpanda: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+
+  agent:
+    build: *svc_build
+    image: ab-skeleton-svc
+    environment:
+      <<: *svc_env
+      AB_GATEWAY_URL: http://gateway:8000
+    command: ["python", "-m", "uvicorn", "ab_agent.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["18090:8000"]
+    healthcheck: *svc_health
+    depends_on:
+      gateway: {condition: service_healthy}

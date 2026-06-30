@@ -30,3 +30,8 @@ def create_token(req: TokenRequest) -> TokenResponse:
 def revoke_agent(req: RevokeRequest) -> dict[str, str]:
     revocation.revoke(req.agent_id)
     return {"status": "revoked", "agent_id": req.agent_id}
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}

@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-06-30 (agent registry expanded to full roster)
+- **Last updated:** 2026-06-30 (adopted spec-driven skills)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
@@ -27,6 +27,7 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 | Regulatory baseline | GDPR-first; finance pack as core; other packs deferred | per spec | |
 | Worked-example venture | "InboxIQ" (B2B SaaS, AI email-triage for SMB support) | 2026-06-30 | Used in `14_instantiation_guide.md` |
 | Agent registry scope | **Full roster — 72 agents across all 16 contexts** (registry v2.0) | 2026-06-30 | Expanded from the initial representative 22. Validated: all required fields, no dup ids, matches `rosterSummary`. |
+| Development method | **Adopted Matt Pocock's spec-driven skills** (grill → PRD → issues → triage → TDD) | 2026-06-30 | 17 skills vendored to `.claude/skills/`. Config: GitHub Issues tracker, AGENTS.md, default triage labels, single-context. |
 
 ---
 
@@ -106,7 +107,14 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 ```
 autonomous-business/
 ├── PROJECT.md                                          ← you are here (project tracker)
+├── AGENTS.md                                           ← agent instructions + skills config
+├── CONTEXT.md                                          ← tight shared-language glossary
+├── README.md                                           ← GitHub landing page
 ├── autonomous-business-architecture-merged-prompt.md   ← the master spec (requirements)
+├── .claude/skills/                                     ← 17 vendored Matt Pocock spec-driven skills
+├── docs/
+│   ├── agents/                                         ← skills config (issue-tracker, triage-labels, domain)
+│   └── adr/                                            ← architecture decision records (created lazily)
 └── architecture/                                       ← the deliverable package (19 files)
     ├── 00_enterprise_overview.md
     ├── 01_context_map.mermaid
@@ -140,6 +148,7 @@ autonomous-business/
 | 2026-06-30 | Opus 4.8 | Initialized git repo, added README + .gitignore, pushed to GitHub (oilyrags/autonomous-business-skeleton, main). |
 | 2026-06-30 | Opus 4.8 | Rewrote commit email to cliveadams@gmail.com; force-pushed. |
 | 2026-06-30 | Opus 4.8 | Expanded agent registry to full roster (v2.0, 72 agents / 16 contexts); recorded thin-artifact assessment. |
+| 2026-06-30 | Opus 4.8 | Adopted Matt Pocock spec-driven skills: vendored 17 skills to `.claude/skills/`, ran setup (GitHub Issues / AGENTS.md / default labels / single-context), seeded `CONTEXT.md`, wrote `docs/agents/*` + `AGENTS.md`. |
 
 ---
 

@@ -1,0 +1,60 @@
+# Local walking-skeleton stack. Infra (OPA, Redpanda, Postgres) is real and
+# health-checked; the five service entries are placeholders for slice 00 and are
+# replaced with real apps as slices 01-04 land.
+name: ab-skeleton
+
+services:
+  opa:
+    image: openpolicyagent/opa:1.18.1
+    command: ["run", "--server", "--addr=0.0.0.0:8181", "/policy"]
+    ports: ["8181:8181"]
+    volumes:
+      - ./config/opa:/policy:ro
+    healthcheck:
+      test: ["CMD", "/opa", "version"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+    ports: ["9092:9092"]
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ab
+      POSTGRES_PASSWORD: ab
+      POSTGRES_DB: ab
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ab -d ab"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # --- service placeholders (implemented in slices 01-04) ---
+  identity: &placeholder
+    image: python:3.12-slim
+    command: ["sleep", "infinity"]
+    depends_on:
+      opa: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+  gateway: *placeholder
+  killswitch: *placeholder
+  audit: *placeholder
+  agent: *placeholder

@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-06-30 (Phase 1 grilled → PRD drafted)
+- **Last updated:** 2026-06-30 (slice 00 scaffold shipped)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
@@ -80,8 +80,10 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 ### Phase 1 — Foundations (in progress, spec-driven flow)
 - [x] **Grill** Phase 1 → resolved 12 decisions (walking skeleton). *(2026-06-30)*
 - [x] **PRD** drafted → `docs/prd/0001-...md`; 3 ADRs written. *(2026-06-30)*
-- [ ] **`/to-issues`** — slice the PRD into vertical-slice issues (publish to GitHub Issues; needs `gh` installed + labels created, or use local fallback).
-- [ ] **`/tdd`** — implement each slice test-first (red-green-refactor): repo/compose/CI scaffold → identity+auth → OPA authorize/deny → audit hash-chain → Decision+event+consumer → kill-switch drill.
+- [x] **`/to-issues`** — sliced into 5 vertical slices in `.scratch/phase-1-foundations/issues/` (local tracker fallback; mirror to GitHub Issues once `gh` is set up). *(2026-06-30)*
+- [x] **Slice 00 — scaffold** (`/tdd`): Python monorepo, uv, ruff/mypy/pytest, docker-compose stack (verified healthy), CI, `ab_schemas` models + passing test. *(2026-06-30)*
+- [ ] **Slice 01 — happy-path tracer**: authenticated agent → gateway → OPA allow → `decision_registry.write` → Decision + `AgentDecisionMade` + hash-chained audit + consumer. **(next)**
+- [ ] Slices 02 (deny), 03 (revoke), 04 (kill-switch drill) via `/tdd`.
 - [ ] **Install `gh`** + `gh auth login` + create triage labels (`gh label create …`) to enable the GitHub Issues workflow.
 
 ### Later phases (follows `15_implementation_roadmap.md`)
@@ -159,6 +161,7 @@ autonomous-business/
 | 2026-06-30 | Opus 4.8 | Expanded agent registry to full roster (v2.0, 72 agents / 16 contexts); recorded thin-artifact assessment. |
 | 2026-06-30 | Opus 4.8 | Adopted Matt Pocock spec-driven skills: vendored 17 skills to `.claude/skills/`, ran setup (GitHub Issues / AGENTS.md / default labels / single-context), seeded `CONTEXT.md`, wrote `docs/agents/*` + `AGENTS.md`. |
 | 2026-06-30 | Opus 4.8 | Grilled Phase 1 (12 decisions) → walking-skeleton PRD (`docs/prd/0001`), ADR-0001/0002/0003, added `Walking Skeleton` to `CONTEXT.md`. No code yet. |
+| 2026-06-30 | Opus 4.8 | `/to-issues`: 5 slices in `.scratch/phase-1-foundations/`. Slice 00 scaffold shipped: `src/` monorepo (uv/ruff/mypy/pytest), docker-compose stack verified healthy, CI, `ab_schemas` models + green test. First running code. |
 
 ---
 

@@ -1,0 +1,36 @@
+[project]
+name = "autonomous-business"
+version = "0.1.0"
+description = "Autonomous AI-First Business Skeleton — Phase 1 walking skeleton"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.7"]
+
+# Monorepo root is a virtual project: uv installs dependencies but does NOT build
+# or editable-install the root itself. The six packages under src/ are put on the
+# path via pytest `pythonpath` and mypy `mypy_path` below. (Distribution wheels
+# per service come later if/when we deploy; the walking skeleton runs from source.)
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+explicit_package_bases = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["src"]
+pythonpath = ["src"]
+addopts = "-q"

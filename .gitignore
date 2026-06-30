@@ -26,3 +26,8 @@ target/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

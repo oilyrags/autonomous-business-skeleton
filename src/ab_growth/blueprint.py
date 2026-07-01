@@ -21,6 +21,9 @@ class Blueprint(BaseModel):
     min_conversion_rate: float = Field(gt=0, le=1)
     # Guardrail: cost-per-acquisition ceiling (minor units). Breach forces KILL.
     max_cac_minor: int = Field(gt=0)
+    # Per-business LLM inference budget (minor units). Secure default 0 → the business cannot spend
+    # on model calls until a budget is set; the gateway meters spend and denies once it would breach.
+    llm_budget_minor: int = Field(default=0, ge=0)
     # Statistical rigor.
     significance_alpha: float = Field(default=0.05, gt=0, lt=1)
     min_exposure_per_arm: int = Field(default=1000, ge=1)

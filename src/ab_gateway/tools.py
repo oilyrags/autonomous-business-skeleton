@@ -94,6 +94,54 @@ def _gate_business_spend(business_id: str, amount_minor: int) -> str:
     return f"{business_id}:cash"
 
 
+def complete_for_business(
+    principal: str, business_id: str, task_profile: str, prompt: str, *, cost_minor: int
+) -> str:
+    """A business-scoped model call, gated on the business's LLM budget BEFORE any inference.
+
+    The business must exist; its cumulative LLM spend (the ``{business_id}:llm_spend`` ledger cost
+    account) plus this call's cost must stay within ``blueprint.llm_budget_minor`` — otherwise the
+    call is refused (402) and no model is invoked. On success the completion runs and its cost is
+    metered to the ledger (debit ``{business_id}:llm_spend`` / credit ``{business_id}:cash``), so
+    the budget tightens with use. Money is conserved; the trial balance stays zero.
+    """
+    from ab_gateway import model_gateway
+    from ab_gateway.llm_budget import LLMBudgetExceeded, gate_llm_spend
+
+    business = factory_store.get(business_id)
+    if business is None:
+        raise ToolDenied(f"unknown business '{business_id}'", status=400)
+    spent = ledger_store.account_balance(f"{business_id}:llm_spend")
+    try:
+        gate_llm_spend(
+            business_id,
+            cost_minor=cost_minor,
+            spent_minor=spent,
+            budget_minor=business.blueprint.llm_budget_minor,
+        )
+    except LLMBudgetExceeded as exc:
+        raise ToolDenied(str(exc), status=402) from exc
+
+    result = model_gateway.complete(task_profile, prompt)  # gate passed → run the inference
+
+    if cost_minor > 0:  # meter the spend so the next call sees it
+        txn = Transaction(
+            txn_id=f"txn_{uuid4().hex[:12]}",
+            idempotency_key=f"llm_{uuid4().hex}",
+            postings=(
+                Posting(f"{business_id}:llm_spend", cost_minor),
+                Posting(f"{business_id}:cash", -cost_minor),
+            ),
+            maker=principal,
+            memo=f"llm:{task_profile}",
+        )
+        try:
+            ledger_store.post(txn)
+        except LedgerError as exc:
+            raise ToolDenied(f"ledger rule: {exc}") from exc
+    return result
+
+
 def transfer_payment(principal: str, args: dict[str, Any]) -> str:
     """Move money to an external payee via the ledger. The ledger enforces double-entry,
     the cap, maker-checker, the payee allow-list, and idempotency — rule violations surface

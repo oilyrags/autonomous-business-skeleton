@@ -38,6 +38,8 @@ jobs:
         run: make portfolio
       - name: Unit economics (profit/CAC/margin/LLM-cost per business)
         run: make econ
+      - name: LLM budget enforcement (gateway denies over-budget calls)
+        run: make llm-budget
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

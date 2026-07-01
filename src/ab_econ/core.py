@@ -37,11 +37,30 @@ class UnitEconomics:
     cac_minor: int | None
     gross_margin_bps: int | None
     llm_cost_ratio_bps: int | None
+    contribution_margin_minor: int  # revenue − variable costs (cogs + llm); acquisition excluded
+    ltv_minor: int | None  # per-customer contribution × expected lifetime periods
+    payback_periods: int | None  # periods of contribution to recover CAC (None if it never does)
     verdict: Verdict
 
 
-def economics(inputs: UnitInputs) -> UnitEconomics:
-    """Derive unit economics from ledger-shaped per-business inputs."""
+@dataclass(frozen=True)
+class ProfitAndLoss:
+    business_id: str
+    revenue_minor: int
+    cogs_minor: int
+    llm_spend_minor: int
+    ad_spend_minor: int
+    gross_profit_minor: int  # revenue − cogs
+    contribution_margin_minor: int  # revenue − cogs − llm
+    operating_profit_minor: int  # revenue − cogs − llm − ad
+
+
+def economics(inputs: UnitInputs, *, expected_lifetime_periods: int = 1) -> UnitEconomics:
+    """Derive unit economics from ledger-shaped per-business inputs.
+
+    ``expected_lifetime_periods`` scales per-customer contribution into LTV (default 1 = single
+    period). Money stays integer minor units; ratios are integer basis points; division floors.
+    """
     profit = inputs.revenue_minor - inputs.cogs_minor - inputs.ad_spend_minor - inputs.llm_spend_minor
     if profit > 0:
         verdict = Verdict.PROFITABLE
@@ -55,13 +74,40 @@ def economics(inputs: UnitInputs) -> UnitEconomics:
     llm_ratio_bps = (
         (inputs.llm_spend_minor * 10_000) // inputs.revenue_minor if inputs.revenue_minor else None
     )
+    contribution = inputs.revenue_minor - inputs.cogs_minor - inputs.llm_spend_minor
+    per_customer = contribution // inputs.customers if inputs.customers else None
+    ltv = per_customer * expected_lifetime_periods if per_customer is not None else None
+    payback = (
+        -(-cac // per_customer)  # ceil division: periods of contribution to recover CAC
+        if cac is not None and per_customer is not None and per_customer > 0
+        else None
+    )
     return UnitEconomics(
         business_id=inputs.business_id,
         operating_profit_minor=profit,
         cac_minor=cac,
         gross_margin_bps=gross_margin_bps,
         llm_cost_ratio_bps=llm_ratio_bps,
+        contribution_margin_minor=contribution,
+        ltv_minor=ltv,
+        payback_periods=payback,
         verdict=verdict,
+    )
+
+
+def profit_and_loss(inputs: UnitInputs) -> ProfitAndLoss:
+    """Roll a business's inputs into a per-business P&L (all integer minor units)."""
+    return ProfitAndLoss(
+        business_id=inputs.business_id,
+        revenue_minor=inputs.revenue_minor,
+        cogs_minor=inputs.cogs_minor,
+        llm_spend_minor=inputs.llm_spend_minor,
+        ad_spend_minor=inputs.ad_spend_minor,
+        gross_profit_minor=inputs.revenue_minor - inputs.cogs_minor,
+        contribution_margin_minor=inputs.revenue_minor - inputs.cogs_minor - inputs.llm_spend_minor,
+        operating_profit_minor=(
+            inputs.revenue_minor - inputs.cogs_minor - inputs.llm_spend_minor - inputs.ad_spend_minor
+        ),
     )
 
 

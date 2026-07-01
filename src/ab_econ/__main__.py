@@ -38,12 +38,12 @@ def _fmt(v: int | None) -> str:
 
 def main() -> int:
     for i in PORTFOLIO:
-        e = economics(i)
+        e = economics(i, expected_lifetime_periods=12)
         ok = within_llm_budget(i, llm_budget_minor=LLM_BUDGET_MINOR)
         print(
             f"  {e.business_id:8} profit={e.operating_profit_minor:+8} "
-            f"cac={_fmt(e.cac_minor):>6} margin_bps={_fmt(e.gross_margin_bps):>6} "
-            f"llm_ratio_bps={_fmt(e.llm_cost_ratio_bps):>6} "
+            f"cac={_fmt(e.cac_minor):>6} contrib={e.contribution_margin_minor:>7} "
+            f"ltv={_fmt(e.ltv_minor):>7} payback={_fmt(e.payback_periods):>4} "
             f"[{e.verdict.value.upper()}] llm_budget_ok={ok}"
         )
     return 0

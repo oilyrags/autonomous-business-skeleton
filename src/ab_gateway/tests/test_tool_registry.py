@@ -11,8 +11,14 @@ def test_registered_tool_has_a_contract() -> None:
     assert spec.sensitive is True
 
 
+def test_payments_transfer_has_a_sensitive_irreversible_contract() -> None:
+    spec = tools.get("payments.transfer")
+    assert spec is not None
+    assert spec.sensitive is True and spec.side_effect == "irreversible" and spec.egress is False
+
+
 def test_unregistered_tool_is_uncallable() -> None:
-    assert tools.get("payments.transfer") is None
+    assert tools.get("nonexistent.tool") is None
 
 
 def test_sensitive_tool_fails_closed_under_untrusted_input() -> None:

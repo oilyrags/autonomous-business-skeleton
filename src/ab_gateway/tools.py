@@ -10,12 +10,27 @@ refused even when policy would otherwise allow it.
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+from uuid import uuid4
+
+from pydantic import ValidationError
 
 from ab_common import db
+from ab_ledger import store as ledger_store
+from ab_ledger.core import LedgerError, Posting, Transaction
 from ab_schemas.events import DataClassification
-from ab_schemas.models import DecisionWrite, NotifyExternal
+from ab_schemas.models import DecisionWrite, NotifyExternal, PaymentTransfer
 
 Handler = Callable[[str, dict[str, Any]], str]
+
+
+class ToolDenied(Exception):
+    """A tool refused the call for a business-rule reason (mapped to an audited gateway deny)."""
+
+    def __init__(self, reason: str, status: int = 403) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.status = status
+
 
 # Ordering of data sensitivity for the egress guard. personal/financial are the top tier.
 _RANK: dict[DataClassification, int] = {
@@ -52,6 +67,31 @@ def write_decision(principal: str, args: dict[str, Any]) -> str:
     return d.decision_id
 
 
+def transfer_payment(principal: str, args: dict[str, Any]) -> str:
+    """Move money to an external payee via the ledger. The ledger enforces double-entry,
+    the cap, maker-checker, the payee allow-list, and idempotency — rule violations surface
+    as a ToolDenied (an audited gateway deny), never an uncaught error."""
+    try:
+        p = PaymentTransfer.model_validate(args)
+    except ValidationError as exc:
+        raise ToolDenied(f"invalid payment args: {exc.error_count()} error(s)", status=400) from exc
+    txn = Transaction(
+        txn_id=f"txn_{uuid4().hex[:12]}",
+        idempotency_key=p.idempotency_key,
+        postings=(Posting(f"external:{p.payee}", p.amount_minor), Posting(p.from_account, -p.amount_minor)),
+        maker=principal,
+        checker=p.checker,
+        currency=p.currency,
+        memo=p.memo,
+        payee=p.payee,
+    )
+    try:
+        ledger_store.post(txn)  # returns False on idempotent replay — still "ok"
+    except LedgerError as exc:
+        raise ToolDenied(f"ledger rule: {exc}") from exc
+    return txn.idempotency_key
+
+
 def send_notification(principal: str, args: dict[str, Any]) -> str:
     """Queue an external notification (egress). Idempotent on notification_id."""
     n = NotifyExternal.model_validate(args)
@@ -82,6 +122,13 @@ REGISTRY: dict[str, ToolSpec] = {
         description="Send a notification outside the trust boundary.",
         egress=True,
         clearance=DataClassification.INTERNAL,
+    ),
+    "payments.transfer": ToolSpec(
+        name="payments.transfer",
+        handler=transfer_payment,
+        side_effect="irreversible",
+        sensitive=True,  # fails closed on an untrusted-input flow
+        description="Move money to an external payee via the double-entry ledger.",
     ),
 }
 

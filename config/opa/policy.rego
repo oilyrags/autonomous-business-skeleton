@@ -19,3 +19,10 @@ allow if {
 	input.action == "notify.external"
 	input.principal == "executive.cmo_agent"
 }
+
+# Slice 30: the skeleton agent may initiate payments. Policy authorizes the capability; the
+# ledger still enforces the cap, maker-checker, and payee allow-list (deterministic money path).
+allow if {
+	input.action == "payments.transfer"
+	input.principal == "executive.cmo_agent"
+}

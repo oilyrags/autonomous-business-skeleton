@@ -42,3 +42,17 @@ class NotifyExternal(BaseModel):
     notification_id: str
     recipient: str
     body: str
+
+
+class PaymentTransfer(BaseModel):
+    """Args for the ``payments.transfer`` tool. The gateway books this as a double-entry
+    ledger transaction (debit external:<payee>, credit from_account); the ledger enforces the
+    cap, maker-checker, payee allow-list, and idempotency."""
+
+    idempotency_key: str
+    amount_minor: int = Field(gt=0)  # positive amount to move, in minor units
+    payee: str
+    from_account: str = "cash"
+    checker: str | None = None
+    currency: str = "EUR"
+    memo: str = ""

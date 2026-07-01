@@ -79,7 +79,12 @@ def tool_call(
             content=ToolCallResult(status="denied", reason=f"invalid token: {exc}").model_dump(),
         )
 
-    resource = str(req.args.get("decision_id") or req.args.get("notification_id") or req.tool)
+    resource = str(
+        req.args.get("decision_id")
+        or req.args.get("notification_id")
+        or req.args.get("idempotency_key")
+        or req.tool
+    )
 
     # 2. Revocation (source of truth in identity, outside the gateway).
     if revocation.is_revoked(principal):
@@ -117,8 +122,12 @@ def tool_call(
         )
         return _deny(principal, req.tool, resource, reason, 403)
 
-    # 5c. Dispatch (deterministic side-effect).
-    decision_id = spec.handler(principal, req.args)
+    # 5c. Dispatch (deterministic side-effect). A tool may refuse for a business-rule reason
+    #     (e.g. the ledger's maker-checker / cap / allow-list) → an audited deny, not a 500.
+    try:
+        decision_id = spec.handler(principal, req.args)
+    except tools.ToolDenied as exc:
+        return _deny(principal, req.tool, resource, exc.reason, exc.status)
 
     # 6. Audit the allowed action.
     audit.append(principal, req.tool, decision_id, "allow", {"tool": req.tool})

@@ -25,14 +25,14 @@ def test_unapproved_tool_is_denied(
     resp = gateway_client.post(
         "/tool-call",
         headers={"Authorization": f"Bearer {token}"},
-        json={"tool": "payments.transfer", "args": {"amount": 1000}, "purpose": "move money"},
+        json={"tool": "database.delete", "args": {"table": "customers"}, "purpose": "wipe data"},
     )
     assert resp.status_code == 403
     assert resp.json()["status"] == "denied"
     assert resp.json()["reason"] == "not authorized by policy"
 
     # No side effect; the denial is audited; chain intact.
-    deny = [r for r in store.read(action="payments.transfer") if r["outcome"] == "deny"]
+    deny = [r for r in store.read(action="database.delete") if r["outcome"] == "deny"]
     assert len(deny) == 1
     assert store.verify_chain() is True
 

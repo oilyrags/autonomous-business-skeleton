@@ -136,6 +136,45 @@ services:
       gateway-proxy: {condition: service_started}
       spire-agent: {condition: service_started}
 
+  # gateway->OPA hop over mTLS (same pattern as agent->gateway). opa-proxy fronts OPA
+  # and only accepts the gateway SVID; gateway-opa-proxy is the gateway's client side.
+  opa-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1003:1003"
+    pid: "service:spire-agent"
+    command:
+      - server
+      - --listen=0.0.0.0:9181
+      - --target=opa:8181
+      - --unsafe-target
+      - --allow-uri=spiffe://ab.internal/gateway
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    ports: ["19181:9181"]
+    depends_on:
+      opa: {condition: service_healthy}
+      spire-agent: {condition: service_started}
+
+  gateway-opa-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1002:1002"          # gateway identity (outbound client)
+    pid: "service:spire-agent"
+    command:
+      - client
+      - --listen=0.0.0.0:8181
+      - --unsafe-listen
+      - --target=opa-proxy:9181
+      - --verify-uri=spiffe://ab.internal/opa
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    depends_on:
+      opa-proxy: {condition: service_started}
+      spire-agent: {condition: service_started}
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     command: ["start-dev", "--import-realm"]

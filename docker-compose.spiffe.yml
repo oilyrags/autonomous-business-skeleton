@@ -1,5 +1,5 @@
-# Overlay for the SPIFFE-secured topology: route the agent's gateway calls through
-# its mTLS sidecar instead of plaintext to the gateway. Use with the base file:
+# Overlay for the SPIFFE-secured topology: route service-to-service calls through the
+# mTLS sidecars instead of plaintext. Use with the base file:
 #   docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe up -d
 services:
   agent:
@@ -7,4 +7,11 @@ services:
       AB_GATEWAY_URL: http://agent-proxy:8000
     depends_on:
       agent-proxy:
+        condition: service_started
+  gateway:
+    environment:
+      # gateway calls OPA through its client sidecar (mTLS) instead of opa:8181.
+      AB_OPA_URL: http://gateway-opa-proxy:8181
+    depends_on:
+      gateway-opa-proxy:
         condition: service_started

@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill
+.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure spire-secure-verify
 
 sync:        ## install the uv workspace
 	uv sync
@@ -24,11 +24,18 @@ spire-up:    ## build SPIRE, bootstrap the trust domain, start the agent (SPIFFE
 spire-verify: ## verify SVID issuance + an agent<->gateway mTLS handshake
 	./scripts/spire-verify.sh
 
-spire-mtls:  ## bring up the ghostunnel mTLS sidecars (needs `make up` + `make spire-up`)
-	docker compose --profile spiffe up -d gateway-proxy agent-proxy
+spire-mtls:  ## bring up all ghostunnel mTLS sidecars (needs `make up` + `make spire-up`)
+	docker compose --profile spiffe up -d gateway-proxy agent-proxy opa-proxy gateway-opa-proxy
 
 spire-mtls-verify: ## verify a live request routes over SPIFFE mTLS to the gateway
 	./scripts/spire-mtls-verify.sh
+
+spire-secure: ## secured topology: repoint agent+gateway through sidecars + all proxies (needs `make up` + `make spire-up`)
+	docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe up -d \
+		gateway agent gateway-proxy agent-proxy opa-proxy gateway-opa-proxy
+
+spire-secure-verify: ## verify agent->gateway AND gateway->OPA both run over mTLS
+	./scripts/spire-secure-verify.sh
 
 spire-rotation-drill: ## short-TTL SVIDs; prove rotation + zero-downtime mTLS (needs `make up`)
 	docker compose --profile spiffe rm -sf spire-server spire-agent gateway-proxy agent-proxy >/dev/null 2>&1 || true

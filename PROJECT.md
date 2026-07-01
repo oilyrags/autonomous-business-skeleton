@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-07-01 (SVID rotation drill — slice 10)
+- **Last updated:** 2026-07-01 (gateway→OPA mTLS — slice 11)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
@@ -96,7 +96,8 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 - [x] **SPIFFE/mTLS tracer** (slice 08, ADR-0006): SPIRE (opt-in `spiffe` profile) issues workload SVIDs (unix attestor by UID); verified SVID issuance + agent↔gateway mTLS handshake (`make spire-up && make spire-verify`; CI `spiffe` job). *(2026-07-01)*
 - [x] **agent→gateway mTLS enforced** (slice 09, ADR-0007): ghostunnel sidecars fetch SVIDs from SPIRE, enforce SPIFFE-ID authz; live `/health` + full `/act` business call route over mTLS; no-SVID client rejected. Opt-in (`spiffe` profile + `docker-compose.spiffe.yml`); CI `docker` job verifies. *(2026-07-01)*
 - [x] **SVID rotation drill** (slice 10): short-TTL (60s) SVIDs auto-rotate; agent→gateway mTLS serves with zero downtime across a rotation (serial changed, 40/40 requests ok). `make spire-rotation-drill`. *(2026-07-01)*
-- [ ] SPIFFE follow-ups (ADR-0007): extend mTLS to other hops (gateway→OPA/PG/Redpanda) + third-party infra; production SPIRE node attestation.
+- [x] **gateway→OPA over mTLS** (slice 11, ADR-0008): ghostunnel opa-proxy/gateway-opa-proxy + `opa` SVID; `/act` authorizes via the mTLS'd OPA hop (200); no-SVID rejected. CI verifies both hops. *(2026-07-01)*
+- [ ] Remaining SPIFFE hops: gateway→Postgres (touches several DB clients), gateway→Redpanda (Kafka advertised-listeners break naive TCP proxying); production SPIRE node attestation.
 - [ ] Production Keycloak/Vault modes.
 - [ ] Real model providers behind the gateway (vLLM / managed), replacing the stub.
 - [ ] Phase 2 — Core data (canonical model, data inventory, semantic layer) per `architecture/15_implementation_roadmap.md`.
@@ -193,6 +194,7 @@ autonomous-business/
 | 2026-07-01 | Opus 4.8 | Slice 08 (ADR-0006): SPIFFE/mTLS tracer — SPIRE (spiffe profile) issues workload SVIDs via unix attestor by UID; verified SVID issuance + agent↔gateway mTLS handshake; CI `spiffe` job. App-integration (SVIDs into live calls) deferred; services still use plain HTTP. |
 | 2026-07-01 | Opus 4.8 | Slice 09 (ADR-0007): agent→gateway mTLS enforced via ghostunnel sidecars (SVIDs from SPIRE, SPIFFE-ID authz). Live `/health` + full `/act` over mTLS; no-SVID rejected. Solved shared-PID-namespace attestation + ghostunnel unsafe flags. CI `docker` job verifies. |
 | 2026-07-01 | Opus 4.8 | Slice 10: SVID rotation drill — 60s-TTL SVIDs auto-rotate; agent→gateway mTLS zero downtime across rotation (serial changed, 40/40 ok). `make spire-rotation-drill`; runnable drill (not CI). |
+| 2026-07-01 | Opus 4.8 | Slice 11 (ADR-0008): gateway→OPA over mTLS (opa-proxy/gateway-opa-proxy + `opa` SVID, reusing the sidecar pattern). `/act` authorizes via mTLS'd OPA (200); no-SVID rejected. CI `docker` job verifies both hops. |
 
 ---
 

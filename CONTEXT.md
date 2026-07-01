@@ -62,6 +62,32 @@ _Avoid_: opt-in, permission, subscription
 A recurring entitlement a Customer holds, driving billing and access.
 _Avoid_: plan, licence (a plan is the catalog template)
 
+## Marketing & social
+
+**SocialProfile**:
+A business's social configuration (voice, content pillars + weights, platforms + format mix, posting rules, KPI weights, review mode), scoped by `business_id`. Distinct from a `Blueprint` (which carries economics).
+_Avoid_: brand_config, brand (a Brand is the identity; this is its social operating config)
+
+**Content Pillar**:
+A weighted theme a brand posts under (e.g. "Productivity Hacks"); the planner draws format/platform choices against its weight.
+_Avoid_: topic, category, theme (when you mean the weighted planning unit)
+
+**Content Plan Item**:
+A deterministic decision to post: pillar, platform, format, timing, key message — produced before any copy is written.
+_Avoid_: idea, draft, task
+
+**Composite Engagement Score**:
+The single deterministic score for a post, a weighted blend of normalized KPIs (per the profile's `kpi_weights`), in integer basis points.
+_Avoid_: engagement, performance (too vague), ER (too narrow)
+
+**Review Mode**:
+Whether a publish needs human approval: `human_approval_first_n`, `always`, or `never`. The configurable human gate on the outward-facing action.
+_Avoid_: approval flag, moderation
+
+**Publisher (port)**:
+The seam that posts/schedules content to a platform and returns a platform post id; stub by default, a real Postiz/native adapter behind it. A publish is a governed action.
+_Avoid_: poster, distributor
+
 ## Finance
 
 **Ledger Entry**:

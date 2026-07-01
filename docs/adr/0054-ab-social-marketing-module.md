@@ -52,6 +52,16 @@ gateway cost metering; `ab_growth`/`ab_playbook`).
 - **Events**: `ContentPublished`, `PostMetricsCollected` (business-scoped, financial/internal),
   added to `events.asyncapi.yaml` — the ADR-0037 contract test drives each.
 
+## Shipped
+
+- **Slice 64 (tracer bullet):** `SocialProfile` config (voice, weighted pillars, platforms +
+  format mix, posting rules, kpi_weights, review_mode); deterministic `plan(profile, *, count)`
+  (largest-remainder pillar allocation, platform cycling, top-share format); `ContentGenerator` port
+  + `StubContentGenerator`; `qa(draft, profile)` brand-safety gate (forbidden terms + required
+  elements); governed `Publisher` port + `StubPublisher`; `publish_content` (QA-gate → publish →
+  `ContentPublished` event). `make social` runs plan → generate → QA → publish for one brand. 7 pure
+  tests; AsyncAPI contract green.
+
 ## Deferred (real adapters — need credentials/infra)
 
 Real Postiz/ComfyUI/content-LLM/analytics adapters; DSPy prompt compilation; video generation;

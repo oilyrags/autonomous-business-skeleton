@@ -60,6 +60,8 @@ jobs:
         run: make org
       - name: Tool sandbox (capability policy + audit)
         run: make sandbox
+      - name: Social content (plan -> generate -> QA -> publish)
+        run: make social
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

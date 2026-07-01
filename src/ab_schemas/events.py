@@ -147,6 +147,17 @@ class AdSpendPlaced(Envelope):
     external_ref: str
 
 
+class ContentPublished(Envelope):
+    """A social post passed QA and was published to a platform. The Social context's published
+    event; business-scoped so content is attributable and can become an experiment variant."""
+
+    business_id: str
+    platform: str
+    platform_post_id: str
+    format: str
+    pillar: str
+
+
 class RevenueReceived(Envelope):
     """Money received from a customer, booked to the ledger. The Revenue context's published event;
     business-scoped so income is attributable per business in the portfolio."""

@@ -97,6 +97,11 @@ channels:
     messages:
       SaleClosed:
         $ref: '#/components/messages/SaleClosed'
+  contentPublished:
+    address: marketing.content.published
+    messages:
+      ContentPublished:
+        $ref: '#/components/messages/ContentPublished'
   experimentConcluded:
     address: growth.experiment.concluded
     messages:
@@ -164,6 +169,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/saleClosed'
+  publishContentPublished:
+    action: send
+    channel:
+      $ref: '#/channels/contentPublished'
   publishExperimentConcluded:
     action: send
     channel:
@@ -441,6 +450,24 @@ components:
               maker: { type: string }
               checker: { type: string, description: Distinct approver for maker-checker payments. }
               businessId: { type: string, description: Business the payment is scoped to, if any. }
+
+    ContentPublished:
+      name: ContentPublished
+      title: Content published
+      description: >
+        A social post passed QA and was published to a platform. Business-scoped so content is
+        attributable and can become an experiment variant. Published by the Social context.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, platform, platformPostId, format, pillar]
+            properties:
+              businessId: { type: string }
+              platform: { type: string }
+              platformPostId: { type: string }
+              format: { type: string }
+              pillar: { type: string }
 
     SaleClosed:
       name: SaleClosed

@@ -52,6 +52,8 @@ jobs:
         run: make sales
       - name: Observability (fleet overview + anomaly detection)
         run: make obs
+      - name: Living playbooks (distil winners -> reusable blueprint)
+        run: make playbook
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

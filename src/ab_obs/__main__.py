@@ -58,7 +58,8 @@ def main() -> int:
     t = fleet_totals(snaps)
     print(
         f"\n  FLEET: {t.businesses} businesses, revenue {t.total_revenue_minor}, "
-        f"spend {t.total_spend_minor}, profit {t.total_operating_profit_minor:+}, unprofitable {t.unprofitable}"
+        f"spend {t.total_spend_minor}, profit {t.total_operating_profit_minor:+}, "
+        f"unprofitable {t.unprofitable}"
     )
     print("\n  anomalies:")
     anomalies = detect_anomalies(snaps, max_llm_cost_ratio_bps=2_000, operating_loss_floor_minor=-10_000)

@@ -1,5 +1,7 @@
 """Postgres access + idempotent schema bootstrap for the walking skeleton."""
 
+import time
+
 import psycopg
 
 from .config import settings
@@ -52,8 +54,17 @@ def connect() -> psycopg.Connection:
     return psycopg.connect(settings.pg_dsn)
 
 
-def init_db() -> None:
-    with connect() as conn:
-        for stmt in _DDL:
-            conn.execute(stmt)
-        conn.commit()
+def init_db(retries: int = 15, delay: float = 2.0) -> None:
+    """Create tables (idempotent), retrying the initial connect so startup tolerates
+    the DB (or its mTLS sidecar) not being ready yet."""
+    for attempt in range(retries):
+        try:
+            with connect() as conn:
+                for stmt in _DDL:
+                    conn.execute(stmt)
+                conn.commit()
+            return
+        except psycopg.OperationalError:
+            if attempt == retries - 1:
+                raise
+            time.sleep(delay)

@@ -69,11 +69,11 @@ jobs:
           curl -fsS http://localhost:18081/audit/verify \
             | python3 -c "import sys, json; assert json.load(sys.stdin)['intact'] is True"
           echo "smoke OK"
-      - name: SPIFFE mTLS — agent->gateway + gateway->OPA
+      - name: SPIFFE mTLS — agent->gateway + gateway->OPA + gateway->Postgres
         run: |
           ./scripts/spire-bootstrap.sh
           docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe up -d \
-            gateway agent gateway-proxy agent-proxy opa-proxy gateway-opa-proxy
+            gateway agent gateway-proxy agent-proxy opa-proxy gateway-opa-proxy postgres-proxy gateway-pg-proxy
           ./scripts/spire-mtls-verify.sh
           ./scripts/spire-secure-verify.sh
       - name: Dump logs on failure

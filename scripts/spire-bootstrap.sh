@@ -19,6 +19,8 @@ $SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.inte
   -selector unix:uid:1001 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
 $SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.internal/opa \
   -selector unix:uid:1003 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
+$SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.internal/postgres \
+  -selector unix:uid:1004 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
 
 $DC exec -T spire-server sh -c "printf '%s' '$TOKEN' > /opt/spire/sockets/jointoken"
 $DC rm -sf spire-agent >/dev/null 2>&1 || true

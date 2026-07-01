@@ -175,6 +175,46 @@ services:
       opa-proxy: {condition: service_started}
       spire-agent: {condition: service_started}
 
+  # gateway->Postgres hop over mTLS (ghostunnel tunnels the Postgres TCP wire). Demonstrates
+  # the sidecar pattern on a stateful protocol. postgres-proxy fronts Postgres and only
+  # accepts the gateway SVID; gateway-pg-proxy is the gateway's client side.
+  postgres-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1004:1004"
+    pid: "service:spire-agent"
+    command:
+      - server
+      - --listen=0.0.0.0:6432
+      - --target=postgres:5432
+      - --unsafe-target
+      - --allow-uri=spiffe://ab.internal/gateway
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    ports: ["16432:6432"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      spire-agent: {condition: service_started}
+
+  gateway-pg-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1002:1002"          # gateway identity (outbound client)
+    pid: "service:spire-agent"
+    command:
+      - client
+      - --listen=0.0.0.0:5432
+      - --unsafe-listen
+      - --target=postgres-proxy:6432
+      - --verify-uri=spiffe://ab.internal/postgres
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    depends_on:
+      postgres-proxy: {condition: service_started}
+      spire-agent: {condition: service_started}
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     command: ["start-dev", "--import-realm"]

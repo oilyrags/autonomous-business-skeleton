@@ -10,8 +10,12 @@ services:
         condition: service_started
   gateway:
     environment:
-      # gateway calls OPA through its client sidecar (mTLS) instead of opa:8181.
+      # gateway reaches OPA and Postgres through its client sidecars (mTLS) instead of
+      # opa:8181 / postgres:5432. sslmode=disable: TLS is done by ghostunnel, not Postgres.
       AB_OPA_URL: http://gateway-opa-proxy:8181
+      AB_PG_DSN: postgresql://ab:ab@gateway-pg-proxy:5432/ab?sslmode=disable
     depends_on:
       gateway-opa-proxy:
+        condition: service_started
+      gateway-pg-proxy:
         condition: service_started

@@ -15,11 +15,14 @@ done
 [ -n "$ok" ] || { echo "FAIL: agent /act never returned 200"; cat /tmp/act.json 2>/dev/null || true; exit 1; }
 python3 -c "import json; d=json.load(open('/tmp/act.json')); assert d['gateway_status']==200 and d['body']['status']=='ok', d; print('act OK:', d['decision_id'])"
 
-echo "=== negative: opa-proxy mTLS rejects a client with no SVID ==="
-if curl -fsS -k --max-time 5 https://localhost:19181/ >/dev/null 2>&1; then
-  echo "UNEXPECTED: no-cert client accepted at opa-proxy"; exit 1
-else
-  echo "no-cert client rejected at opa-proxy (expected)"
-fi
+echo "=== negative: proxies reject a client with no SVID ==="
+for hostport in "opa-proxy:19181" "postgres-proxy:16432"; do
+  name=${hostport%%:*}; port=${hostport##*:}
+  if curl -fsS -k --max-time 5 "https://localhost:${port}/" >/dev/null 2>&1; then
+    echo "UNEXPECTED: no-cert client accepted at ${name}"; exit 1
+  else
+    echo "no-cert client rejected at ${name} (expected)"
+  fi
+done
 
-echo "spire-secure-verify: PASS (agent->gateway AND gateway->OPA over mTLS)"
+echo "spire-secure-verify: PASS (agent->gateway, gateway->OPA, gateway->Postgres over mTLS)"

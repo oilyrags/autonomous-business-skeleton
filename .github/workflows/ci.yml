@@ -42,6 +42,8 @@ jobs:
         run: make llm-budget
       - name: End-to-end loop (ledger spend -> econ verdict -> portfolio)
         run: make loop
+      - name: Revenue rail (customer charges booked as income)
+        run: make revenue
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

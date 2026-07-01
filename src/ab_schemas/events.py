@@ -114,6 +114,17 @@ class LedgerEntryPosted(Envelope):
     business_id: str | None = None  # set when the payment is scoped to a business, else None
 
 
+class RevenueReceived(Envelope):
+    """Money received from a customer, booked to the ledger. The Revenue context's published event;
+    business-scoped so income is attributable per business in the portfolio."""
+
+    business_id: str
+    external_ref: str  # the rail's charge id (idempotency anchor)
+    amount_minor: int
+    currency: str
+    customer_ref: str
+
+
 class ExperimentConcluded(Envelope):
     """The Experimentation & Growth context's decision on an experiment (scale/pivot/kill/
     continue). ``business_id`` scopes it to one business in the portfolio (multi-tenancy)."""

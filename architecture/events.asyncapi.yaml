@@ -77,6 +77,11 @@ channels:
     messages:
       LedgerEntryPosted:
         $ref: '#/components/messages/LedgerEntryPosted'
+  revenueReceived:
+    address: finance.revenue.received
+    messages:
+      RevenueReceived:
+        $ref: '#/components/messages/RevenueReceived'
   experimentConcluded:
     address: growth.experiment.concluded
     messages:
@@ -128,6 +133,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/ledgerEntryPosted'
+  publishRevenueReceived:
+    action: send
+    channel:
+      $ref: '#/channels/revenueReceived'
   publishExperimentConcluded:
     action: send
     channel:
@@ -173,7 +182,7 @@ components:
           type: object
           required: [type, id]
           properties:
-            type: { type: string, enum: [Customer, Contact, Account, Invoice, Ticket, Decision, Vendor, Worker, System, Business, Experiment, LedgerTransaction, Model] }
+            type: { type: string, enum: [Customer, Contact, Account, Invoice, Ticket, Decision, Vendor, Worker, System, Business, Experiment, LedgerTransaction, Model, Charge] }
             id: { type: string }
 
     PersonalDataGovernance:
@@ -404,6 +413,26 @@ components:
               maker: { type: string }
               checker: { type: string, description: Distinct approver for maker-checker payments. }
               businessId: { type: string, description: Business the payment is scoped to, if any. }
+
+    RevenueReceived:
+      name: RevenueReceived
+      title: Revenue received
+      tags: [{ name: financial }]
+      description: >
+        Money received from a customer and booked to the ledger. Business-scoped so income is
+        attributable per business. Published by the Revenue context; `externalRef` is the rail's
+        charge id (idempotency anchor).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, externalRef, amountMinor, currency, customerRef]
+            properties:
+              businessId: { type: string }
+              externalRef: { type: string }
+              amountMinor: { type: integer, description: Money received, in integer minor units. }
+              currency: { type: string, default: EUR }
+              customerRef: { type: string }
 
     ExperimentConcluded:
       name: ExperimentConcluded

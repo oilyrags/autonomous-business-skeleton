@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth factory portfolio econ llm-budget loop demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth factory portfolio econ llm-budget loop revenue demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
 
 # Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
 # and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
@@ -112,6 +112,9 @@ llm-budget:  ## gateway enforces the per-business LLM budget — denies a call b
 
 loop:        ## end-to-end: ledger spend → econ verdict → portfolio holds the money-losers
 	PYTHONPATH=src uv run python -m ab_portfolio.loop_demo
+
+revenue:     ## revenue rail demo — customer charges booked to the ledger as income (stub rail)
+	PYTHONPATH=src uv run python -m ab_revenue
 
 factory:     ## business factory demo — provision + readiness-gate businesses (per business_id)
 	PYTHONPATH=src uv run python -m ab_factory

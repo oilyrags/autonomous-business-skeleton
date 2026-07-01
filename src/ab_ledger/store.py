@@ -59,6 +59,11 @@ def account_balance(account: str) -> int:
     return int(row[0]) if row else 0
 
 
+def business_revenue(business_id: str) -> int:
+    """Money received by a business — the negated balance of its ``{business_id}:revenue`` account."""
+    return -account_balance(f"{business_id}:revenue")
+
+
 def business_spend(business_id: str) -> LedgerSpend:
     """Derive a business's spend from the ledger: inference cost + money paid to outsiders.
 

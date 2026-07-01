@@ -153,6 +153,11 @@ class InMemoryLedger:
     def account_balance(self, account: str) -> int:
         return sum(p.amount for p in self._entries if p.account == account)
 
+    def business_revenue(self, business_id: str) -> int:
+        """Money received by a business = the credit balance of its ``{business_id}:revenue``
+        income account (postings are negative credits, so revenue is the negated balance)."""
+        return -self.account_balance(f"{business_id}:revenue")
+
     def business_spend(self, business_id: str) -> LedgerSpend:
         """Derive a business's spend from the ledger: inference cost + money paid to outsiders."""
         external = sum(

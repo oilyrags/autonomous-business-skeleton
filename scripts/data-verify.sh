@@ -48,6 +48,16 @@ assert d['value'] and d['value'] >= 1, d
 print('deciding_agents_total =', d['value'], '(grain:', d['grain'] + ')')
 "
 
+echo "=== freshness: warehouse reports rows + is within SLA right after ingest ==="
+curl -fsS "$DATA/freshness" | python3 -c "
+import sys, json
+f = json.load(sys.stdin)
+assert f['rows'] >= $target, f
+assert f['latest_event_at'] and f['latest_ingested_at'], f
+assert f['within_sla'] is True, f  # just ingested, so well inside the SLA
+print(f\"freshness OK: {f['rows']} rows, age {f['age_seconds']:.1f}s <= SLA {f['sla_seconds']}s\")
+"
+
 echo "=== negative: an unknown metric is a 404, not a fabricated number ==="
 code=$(curl -sS -o /dev/null -w '%{http_code}' "$DATA/metrics/not_a_real_metric")
 [ "$code" = "404" ] || { echo "FAIL: expected 404 for unknown metric, got $code"; exit 1; }

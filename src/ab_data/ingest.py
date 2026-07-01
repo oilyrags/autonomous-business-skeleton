@@ -13,11 +13,18 @@ from ab_data.contracts import BRONZE_COLUMNS
 from ab_schemas.events import AgentDecisionMade
 
 
+def _utc_naive(dt: datetime) -> datetime:
+    """Store timestamps as UTC wall-time (naive) so the DuckDB TIMESTAMP column is
+    unambiguous. Binding a tz-aware value would let DuckDB shift it to the host's
+    local time; normalising here keeps the warehouse in UTC regardless of host tz."""
+    return dt.astimezone(UTC).replace(tzinfo=None)
+
+
 def _row(event: AgentDecisionMade, ingested_at: datetime) -> tuple[object, ...]:
     return (
         event.event_id,
         event.event_name,
-        event.occurred_at,
+        _utc_naive(event.occurred_at),
         event.producer,
         str(event.data_classification),
         event.decision_id,
@@ -25,7 +32,7 @@ def _row(event: AgentDecisionMade, ingested_at: datetime) -> tuple[object, ...]:
         event.authority_level,
         str(event.approval_status),
         event.art22_significant,
-        ingested_at,
+        _utc_naive(ingested_at),
     )
 
 

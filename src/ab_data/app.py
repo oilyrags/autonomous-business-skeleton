@@ -12,12 +12,13 @@ import threading
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from typing import Any
 
 import duckdb
 from fastapi import FastAPI, HTTPException
 
-from ab_data import config, ingest, pipeline
+from ab_data import config, freshness, ingest, pipeline
 from ab_data.metrics import REGISTRY, UnknownMetricError
 
 _lock = threading.Lock()  # serialise warehouse access (duckdb single-writer)
@@ -73,6 +74,22 @@ def get_metric(name: str) -> dict[str, Any]:
         finally:
             con.close()
     return {"name": name, "value": int(row[0]) if row else 0, "grain": metric.grain}
+
+
+@app.get("/freshness")
+def get_freshness() -> dict[str, Any]:
+    """How current the served KPIs are, and whether that is within the freshness SLA."""
+    with _lock:
+        f = freshness.read_freshness()
+    s = freshness.staleness(f.latest_ingested_at, datetime.now(tz=UTC))
+    return {
+        "rows": f.rows,
+        "latest_event_at": f.latest_event_at.isoformat() if f.latest_event_at else None,
+        "latest_ingested_at": f.latest_ingested_at.isoformat() if f.latest_ingested_at else None,
+        "age_seconds": s.age_seconds,
+        "within_sla": s.within_sla,
+        "sla_seconds": s.sla_seconds,
+    }
 
 
 @app.get("/health")

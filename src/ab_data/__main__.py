@@ -3,7 +3,7 @@
 uv run python -m ab_data
 """
 
-from ab_data import ingest, pipeline
+from ab_data import freshness, ingest, pipeline
 
 
 def main() -> None:
@@ -18,6 +18,9 @@ def main() -> None:
         print(f"  {name} = {value}")
     for q in result.quality:
         print(f"  [{'ok' if q.passed else 'FAIL'}] {q.check}: {q.detail}")
+    f = freshness.read_freshness()
+    latest = f.latest_event_at.isoformat() if f.latest_event_at else "—"
+    print(f"freshness: {f.rows} row(s), newest event {latest}")
 
 
 if __name__ == "__main__":

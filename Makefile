@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth factory demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
 
 # Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
 # and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
@@ -100,6 +100,9 @@ failsim:     ## run the failure-injection scenario suite (Audit 12); breach -> n
 
 growth:      ## experimentation engine demo — scale/pivot/kill decisions per business
 	PYTHONPATH=src uv run python -m ab_growth
+
+factory:     ## business factory demo — provision + readiness-gate businesses (per business_id)
+	PYTHONPATH=src uv run python -m ab_factory
 
 demo:        ## end-to-end walkthrough of the whole loop (needs `make up-infra`)
 	PYTHONPATH=src uv run python scripts/demo.py

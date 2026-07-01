@@ -124,3 +124,12 @@ class ExperimentConcluded(Envelope):
     p_value: float
     control_rate: float
     variant_rate: float
+
+
+class BusinessActivated(Envelope):
+    """A new business passed the readiness gate and went live, funded with capital. The
+    Business Factory's published event; a portfolio context integrates on ``business_id``."""
+
+    business_id: str
+    name: str
+    capital_minor: int

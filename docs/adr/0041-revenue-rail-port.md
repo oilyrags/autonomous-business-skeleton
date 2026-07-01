@@ -34,7 +34,15 @@ charge multi-business; idempotent on `external_ref`); AsyncAPI contract green (+
 (in CI) books two businesses' charges to the ledger. Full suite 178 passed, 36 skipped; ruff + mypy
 strict clean (85 files).
 
+## Follow-up shipped — the loop consumes real revenue (slice 51)
+
+`ab_portfolio.loop_demo` and the capstone test (`test_close_the_loop`) now read
+`ledger.business_revenue(business_id)` instead of an injected revenue constant, so the closed
+`ledger → econ → portfolio` loop runs on **real money on both sides** (revenue booked by the rail +
+spend metered by the gateway). Only `cogs` and `customers` remain injected (no rail for those yet).
+`make loop` shows `revenue=1000000/300000` sourced from the ledger.
+
 ## Deferred
 
-Real Stripe/Lemon Squeezy adapter (webhook verification, settlement); `ab_econ` consuming
-`business_revenue` so the closed loop runs on real revenue (next slice); refunds/chargebacks.
+Real Stripe/Lemon Squeezy adapter (webhook verification, settlement); a cogs/fulfilment source and a
+customer-count source so those inputs are also derived; refunds/chargebacks.

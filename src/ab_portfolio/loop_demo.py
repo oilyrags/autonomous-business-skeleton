@@ -12,9 +12,15 @@ from __future__ import annotations
 from ab_econ.core import UnitInputs, economics, unprofitable_ids
 from ab_ledger.core import InMemoryLedger, Posting, Transaction
 from ab_portfolio.core import BusinessPerformance, allocate
+from ab_revenue.core import Charge, record_charges
+from ab_revenue.gateway import StubRevenueGateway
 
-# Revenue/customers come from a rail (injected); spend comes from the ledger.
-REVENUE = {"rocket": (1_000_000, 100_000, 100), "hog": (300_000, 100_000, 40)}  # revenue, cogs, customers
+# cogs + customers still come from a rail (injected); revenue AND spend now come from the ledger.
+COGS_AND_CUSTOMERS = {"rocket": (100_000, 100), "hog": (100_000, 40)}  # cogs_minor, customers
+REVENUE_CHARGES = [
+    Charge(business_id="rocket", amount_minor=1_000_000, customer_ref="cus_r", external_ref="rev_r"),
+    Charge(business_id="hog", amount_minor=300_000, customer_ref="cus_h", external_ref="rev_h"),
+]
 BUDGET_MINOR = 1_000_000
 
 
@@ -50,14 +56,16 @@ def _seed_ledger() -> InMemoryLedger:
     meter("hog", 100_000, "h-m1")
     meter("hog", 100_000, "h-m2")
     ad("hog", 150_000, "h-p1")
+    record_charges(StubRevenueGateway(REVENUE_CHARGES), led)  # customer revenue -> the ledger
     return led
 
 
 def main() -> int:
     led = _seed_ledger()
     econ = []
-    for bid, (revenue, cogs, customers) in REVENUE.items():
+    for bid, (cogs, customers) in COGS_AND_CUSTOMERS.items():
         spend = led.business_spend(bid)
+        revenue = led.business_revenue(bid)  # real income from the ledger, not injected
         e = economics(
             UnitInputs(
                 business_id=bid,
@@ -70,8 +78,9 @@ def main() -> int:
         )
         econ.append(e)
         print(
-            f"  {bid:8} ledger spend: llm={spend.llm_spend_minor} ad={spend.external_spend_minor} "
-            f"-> profit={e.operating_profit_minor:+8} [{e.verdict.value.upper()}]"
+            f"  {bid:8} ledger: revenue={revenue} llm={spend.llm_spend_minor} "
+            f"ad={spend.external_spend_minor} -> profit={e.operating_profit_minor:+8} "
+            f"[{e.verdict.value.upper()}]"
         )
 
     losers = unprofitable_ids(econ)

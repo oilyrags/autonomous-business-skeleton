@@ -10,6 +10,8 @@ from __future__ import annotations
 from ab_econ.core import UnitInputs, economics, unprofitable_ids
 from ab_ledger.core import InMemoryLedger, Posting, Transaction
 from ab_portfolio.core import Action, BusinessPerformance, allocate
+from ab_revenue.core import Charge, record_charges
+from ab_revenue.gateway import StubRevenueGateway
 
 
 def _llm_meter(led: InMemoryLedger, bid: str, cost: int, key: str) -> None:
@@ -38,12 +40,12 @@ def _ad_payment(led: InMemoryLedger, bid: str, amount: int, key: str) -> None:
     )
 
 
-def _economics(led: InMemoryLedger, bid: str, *, revenue: int, cogs: int, customers: int) -> object:
+def _economics(led: InMemoryLedger, bid: str, *, cogs: int, customers: int) -> object:
     spend = led.business_spend(bid)
     return economics(
         UnitInputs(
             business_id=bid,
-            revenue_minor=revenue,
+            revenue_minor=led.business_revenue(bid),  # revenue from the ledger, not injected
             cogs_minor=cogs,
             ad_spend_minor=spend.external_spend_minor,
             llm_spend_minor=spend.llm_spend_minor,
@@ -62,10 +64,20 @@ def test_allocation_holds_a_winner_that_the_ledger_says_loses_money() -> None:
     _llm_meter(led, "hog", 100_000, "h-m1")
     _llm_meter(led, "hog", 100_000, "h-m2")
     _ad_payment(led, "hog", 150_000, "h-p1")
+    # Revenue also comes from the ledger (booked by the revenue rail), not injected.
+    record_charges(
+        StubRevenueGateway(
+            [
+                Charge(business_id="rocket", amount_minor=1_000_000, customer_ref="c", external_ref="r"),
+                Charge(business_id="hog", amount_minor=300_000, customer_ref="c", external_ref="h"),
+            ]
+        ),
+        led,
+    )
 
     econ = [
-        _economics(led, "rocket", revenue=1_000_000, cogs=100_000, customers=100),
-        _economics(led, "hog", revenue=300_000, cogs=100_000, customers=40),
+        _economics(led, "rocket", cogs=100_000, customers=100),
+        _economics(led, "hog", cogs=100_000, customers=40),
     ]
     losers = unprofitable_ids(econ)  # type: ignore[arg-type]
     assert losers == {"hog"}  # the ledger's verdict, not a hand-picked set

@@ -53,4 +53,15 @@ else
   echo "no-cert client rejected at redpanda-proxy (expected)"
 fi
 
-echo "spire-bus-verify: PASS (gateway produce + audit/data consume over SPIFFE mTLS)"
+echo "=== negative: gateway has NO direct route to Redpanda (network-isolated on busnet) ==="
+DC="docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe"
+for port in 9092 29093; do
+  if $DC exec -T gateway python -c \
+      "import socket; socket.create_connection(('redpanda', $port), 3)" >/dev/null 2>&1; then
+    echo "UNEXPECTED: gateway reached redpanda:$port directly"; exit 1
+  else
+    echo "gateway cannot reach redpanda:$port directly (expected — only via mTLS proxy)"
+  fi
+done
+
+echo "spire-bus-verify: PASS (bus over SPIFFE mTLS; Redpanda network-isolated)"

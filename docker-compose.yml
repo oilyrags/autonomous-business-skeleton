@@ -32,6 +32,10 @@ services:
       - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092,mtls://0.0.0.0:29093
       - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092,mtls://kafka-mtls:29092
     ports: ["19092:19092"]
+    # On `busnet` only — app services have no direct route to the broker; they reach it
+    # via mTLS through redpanda-proxy (which bridges default<->busnet). The host keeps a
+    # route via the published external listener (localhost:19092) for in-process tests.
+    networks: [busnet]
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
       interval: 5s
@@ -302,6 +306,7 @@ services:
     volumes:
       - spire-sockets:/opt/spire/sockets
     ports: ["29092:29092"]
+    networks: [default, busnet]   # bridges the app network to the isolated busnet
     depends_on:
       redpanda: {condition: service_healthy}
       spire-agent: {condition: service_started}
@@ -435,6 +440,7 @@ services:
 
 networks:
   pgnet:   # isolated DB network; only postgres + postgres-proxy attach
+  busnet:  # isolated bus network; only redpanda + redpanda-proxy attach
 
 volumes:
   spire-sockets:

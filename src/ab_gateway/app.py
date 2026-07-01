@@ -17,8 +17,7 @@ from fastapi.responses import JSONResponse
 from ab_audit import store as audit
 from ab_common import bus, db
 from ab_common.config import settings
-from ab_gateway import model_gateway, opa
-from ab_gateway.tools import TOOLS
+from ab_gateway import model_gateway, opa, tools
 from ab_identity import revocation
 from ab_identity.tokens import InvalidToken, validate_token
 from ab_killswitch import state
@@ -39,6 +38,16 @@ app = FastAPI(title="ab-gateway", lifespan=lifespan)
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/tools")
+def list_tools() -> list[dict[str, object]]:
+    """Discover the governed tool catalog (name + contract). Authorization is still
+    enforced per call (OPA + untrusted-input gate); this only advertises what exists."""
+    return [
+        {"name": s.name, "side_effect": s.side_effect, "sensitive": s.sensitive, "description": s.description}
+        for s in tools.REGISTRY.values()
+    ]
 
 
 def _deny(principal: str, action: str, resource: str, reason: str, status: int) -> JSONResponse:
@@ -84,11 +93,18 @@ def tool_call(
     if not opa.authorize(principal, req.tool, resource, req.purpose):
         return _deny(principal, req.tool, resource, "not authorized by policy", 403)
 
-    # 5. Dispatch the registered tool (deterministic side-effect).
-    handler = TOOLS.get(req.tool)
-    if handler is None:
+    # 5. Resolve the tool against the registry (unregistered tools are uncallable).
+    spec = tools.get(req.tool)
+    if spec is None:
         return _deny(principal, req.tool, resource, "unknown tool", 400)
-    decision_id = handler(principal, req.args)
+
+    # 5a. Prompt-injection defense: a sensitive tool fails closed on an untrusted-input flow,
+    #     even though policy allowed it above (defense in depth, architecture/10).
+    if tools.blocked_by_input_trust(spec, untrusted_input=req.untrusted_input):
+        return _deny(principal, req.tool, resource, "sensitive tool blocked under untrusted-input flow", 403)
+
+    # 5b. Dispatch (deterministic side-effect).
+    decision_id = spec.handler(principal, req.args)
 
     # 6. Audit the allowed action.
     audit.append(principal, req.tool, decision_id, "allow", {"tool": req.tool})

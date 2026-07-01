@@ -11,6 +11,9 @@ class ToolCallRequest(BaseModel):
     tool: str
     args: dict[str, Any] = Field(default_factory=dict)
     purpose: str
+    # True when the agent is acting on untrusted content (e.g. an inbound email/web page):
+    # sensitive tools fail closed on such flows (prompt-injection defense, architecture/10).
+    untrusted_input: bool = False
 
 
 class ToolCallResult(BaseModel):

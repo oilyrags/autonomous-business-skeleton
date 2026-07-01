@@ -102,6 +102,11 @@ channels:
     messages:
       ContentPublished:
         $ref: '#/components/messages/ContentPublished'
+  postMetricsCollected:
+    address: marketing.content.metrics_collected
+    messages:
+      PostMetricsCollected:
+        $ref: '#/components/messages/PostMetricsCollected'
   experimentConcluded:
     address: growth.experiment.concluded
     messages:
@@ -173,6 +178,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/contentPublished'
+  publishPostMetricsCollected:
+    action: send
+    channel:
+      $ref: '#/channels/postMetricsCollected'
   publishExperimentConcluded:
     action: send
     channel:
@@ -450,6 +459,23 @@ components:
               maker: { type: string }
               checker: { type: string, description: Distinct approver for maker-checker payments. }
               businessId: { type: string, description: Business the payment is scoped to, if any. }
+
+    PostMetricsCollected:
+      name: PostMetricsCollected
+      title: Post metrics collected
+      description: >
+        A published post's engagement metrics were collected and scored into a single KPI-weighted
+        composite (basis points). Published by the Social context; feeds the growth experiment loop.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, platformPostId, impressions, compositeScoreBps]
+            properties:
+              businessId: { type: string }
+              platformPostId: { type: string }
+              impressions: { type: integer }
+              compositeScoreBps: { type: integer, description: KPI-weighted composite score (bps). }
 
     ContentPublished:
       name: ContentPublished

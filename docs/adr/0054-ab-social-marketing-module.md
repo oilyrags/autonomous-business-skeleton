@@ -62,6 +62,11 @@ gateway cost metering; `ab_growth`/`ab_playbook`).
   `ContentPublished` event). `make social` runs plan → generate → QA → publish for one brand. 7 pure
   tests; AsyncAPI contract green.
 
+- **Slice 65 (metrics + scoring):** `PostMetrics` + `MetricsSource` port + `StubMetricsSource`;
+  `composite_score(metrics, kpi_weights) -> int` blends normalized KPIs into one basis-points score;
+  `collect_metrics` + `PostMetricsCollected` event. `make social` now scores each published post
+  (linkedin 625 bps vs x 200 bps). 4 pure tests; contract green.
+
 ## Deferred (real adapters — need credentials/infra)
 
 Real Postiz/ComfyUI/content-LLM/analytics adapters; DSPy prompt compilation; video generation;

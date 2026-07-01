@@ -158,6 +158,16 @@ class ContentPublished(Envelope):
     pillar: str
 
 
+class PostMetricsCollected(Envelope):
+    """A published post's engagement metrics were collected and scored. The Social context's
+    published event; ``composite_score_bps`` is the single KPI-weighted score (basis points)."""
+
+    business_id: str
+    platform_post_id: str
+    impressions: int
+    composite_score_bps: int
+
+
 class RevenueReceived(Envelope):
     """Money received from a customer, booked to the ledger. The Revenue context's published event;
     business-scoped so income is attributable per business in the portfolio."""

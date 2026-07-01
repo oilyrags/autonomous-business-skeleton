@@ -114,6 +114,15 @@ class LedgerEntryPosted(Envelope):
     business_id: str | None = None  # set when the payment is scoped to a business, else None
 
 
+class MvpDeployed(Envelope):
+    """A business's MVP/landing page was generated from its Blueprint and deployed to a URL. The
+    MVP context's published event; an experiment can now point traffic at ``url``."""
+
+    business_id: str
+    url: str
+    content_hash: str
+
+
 class AdSpendPlaced(Envelope):
     """A business-scoped ad campaign ran: spend was placed with an ad platform and attributed
     conversions came back. Published by the Ads context; closes the acquisition loop (spend →

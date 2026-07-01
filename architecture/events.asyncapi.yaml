@@ -87,6 +87,11 @@ channels:
     messages:
       AdSpendPlaced:
         $ref: '#/components/messages/AdSpendPlaced'
+  mvpDeployed:
+    address: growth.mvp.deployed
+    messages:
+      MvpDeployed:
+        $ref: '#/components/messages/MvpDeployed'
   experimentConcluded:
     address: growth.experiment.concluded
     messages:
@@ -146,6 +151,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/adSpendPlaced'
+  publishMvpDeployed:
+    action: send
+    channel:
+      $ref: '#/channels/mvpDeployed'
   publishExperimentConcluded:
     action: send
     channel:
@@ -422,6 +431,22 @@ components:
               maker: { type: string }
               checker: { type: string, description: Distinct approver for maker-checker payments. }
               businessId: { type: string, description: Business the payment is scoped to, if any. }
+
+    MvpDeployed:
+      name: MvpDeployed
+      title: MVP deployed
+      description: >
+        A business's MVP/landing page was generated from its Blueprint and deployed to a URL, so an
+        experiment can point traffic at it. Published by the MVP context.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, url, contentHash]
+            properties:
+              businessId: { type: string }
+              url: { type: string }
+              contentHash: { type: string, description: Hash of the deployed page content. }
 
     AdSpendPlaced:
       name: AdSpendPlaced

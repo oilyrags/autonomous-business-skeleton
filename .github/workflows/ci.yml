@@ -46,6 +46,8 @@ jobs:
         run: make revenue
       - name: Paid acquisition (ad spend + attribution)
         run: make ads
+      - name: MVP generator + deployer (Blueprint -> page -> URL)
+        run: make mvp
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

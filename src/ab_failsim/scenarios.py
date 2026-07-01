@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from ab_compliance.dsar import erasure_plan
 from ab_data.freshness import Freshness, readiness
 from ab_evals.gate import evaluate_and_gate
 from ab_evals.models import HallucinatingModel
@@ -120,12 +121,20 @@ def stale_forecast() -> ScenarioResult:
 
 
 def dsar_erasure_with_legal_hold() -> ScenarioResult:
+    """Erasure request with a financial legal hold → erasure propagates, financial records are
+    retained + itemized with their lawful basis (Art.17(3)(b)), and the plan is evidenced."""
+    plan = erasure_plan("subject-under-test")
+    financial_hold = any(
+        (r.get("retentionPolicy") == "financial_retention") or (r.get("lawfulBasis") == "legal_obligation")
+        for r in plan.retained_under_hold
+    )
+    contained = bool(plan.erased) and financial_hold and plan.evidenced
     return ScenarioResult(
         "dsar_erasure_with_legal_hold",
         "09/AM-16",
-        False,
-        "no DSAR erasure/legal-hold flow implemented yet (Compliance phase)",
-        deferred=True,
+        contained,
+        f"{len(plan.erased)} element(s) erased; {len(plan.retained_under_hold)} retained under legal "
+        "hold, itemized with lawful basis (evidenced)",
     )
 
 

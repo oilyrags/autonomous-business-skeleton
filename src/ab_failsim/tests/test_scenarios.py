@@ -22,12 +22,13 @@ def test_implemented_scenarios_are_contained() -> None:
         "bad_payment",
         "failed_dependency",
         "stale_forecast",
+        "dsar_erasure_with_legal_hold",
     }
 
 
-def test_only_dsar_and_incident_are_deferred() -> None:
+def test_only_incident_rollback_is_deferred() -> None:
     deferred = {r.name for r in run_all() if r.deferred}
-    assert deferred == {"dsar_erasure_with_legal_hold", "incident_rollback"}
+    assert deferred == {"incident_rollback"}
 
 
 def test_cli_exits_zero_when_no_breaches() -> None:

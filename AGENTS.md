@@ -7,7 +7,7 @@ Agent instructions for the **Autonomous AI-First Business Skeleton** project.
 - **Read [`PROJECT.md`](PROJECT.md) first** — it is the living source of truth (status, decisions, pending work, conventions, change log).
 - Requirements spec: [`autonomous-business-architecture-merged-prompt.md`](autonomous-business-architecture-merged-prompt.md).
 - The v1.0 design package lives in [`architecture/`](architecture/) (19 artifacts, Mode B).
-- Shared language: [`CONTEXT.md`](CONTEXT.md) (tight glossary) ← derived from [`architecture/02_ubiquitous_glossary.md`](architecture/02_ubiquitous_glossary.md) (full glossary).
+- Shared language: [`CONTEXT-MAP.md`](CONTEXT-MAP.md) (context map + shared glossary) → per-context `src/<context>/CONTEXT.md` ← derived from [`architecture/02_ubiquitous_glossary.md`](architecture/02_ubiquitous_glossary.md) (full glossary).
 
 ## Agent skills
 
@@ -23,7 +23,7 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-**Single-context**: one root `CONTEXT.md` + `docs/adr/`. Migrates to multi-context (`CONTEXT-MAP.md`) when code modules appear under `src/<context>/`. See [`docs/agents/domain.md`](docs/agents/domain.md).
+**Multi-context**: root [`CONTEXT-MAP.md`](CONTEXT-MAP.md) (context list + shared language + relationships) → one `src/<context>/CONTEXT.md` per bounded context + system-wide `docs/adr/`. See [`docs/agents/domain.md`](docs/agents/domain.md).
 
 ## Conventions
 

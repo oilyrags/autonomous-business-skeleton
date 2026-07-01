@@ -29,6 +29,7 @@ from ab_schemas.models import ToolCallRequest, ToolCallResult
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     db.init_db()
     bus.ensure_topic(settings.decision_topic)
+    bus.ensure_topic(settings.ledger_topic)
     yield
 
 

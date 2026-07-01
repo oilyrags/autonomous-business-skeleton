@@ -12,6 +12,7 @@ class Settings:
     kafka_bootstrap: str = os.environ.get("AB_KAFKA", "localhost:19092")
     decision_topic: str = os.environ.get("AB_DECISION_TOPIC", "executive.decision.made")
     kill_topic: str = os.environ.get("AB_KILL_TOPIC", "security.killswitch.activated")
+    ledger_topic: str = os.environ.get("AB_LEDGER_TOPIC", "finance.ledger.posted")
     # OIDC (Keycloak). Defaults target the host-published port for tests; in-container
     # services override these to reach Keycloak by service name (see docker-compose).
     oidc_token_url: str = os.environ.get(

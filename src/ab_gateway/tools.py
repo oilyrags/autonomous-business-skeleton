@@ -9,15 +9,17 @@ refused even when policy would otherwise allow it.
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 from pydantic import ValidationError
 
-from ab_common import db
+from ab_common import bus, db
+from ab_common.config import settings
 from ab_ledger import store as ledger_store
 from ab_ledger.core import LedgerError, Posting, Transaction
-from ab_schemas.events import DataClassification
+from ab_schemas.events import DataClassification, LedgerEntryPosted, SubjectRef
 from ab_schemas.models import DecisionWrite, NotifyExternal, PaymentTransfer
 
 Handler = Callable[[str, dict[str, Any]], str]
@@ -86,9 +88,26 @@ def transfer_payment(principal: str, args: dict[str, Any]) -> str:
         payee=p.payee,
     )
     try:
-        ledger_store.post(txn)  # returns False on idempotent replay — still "ok"
+        applied = ledger_store.post(txn)  # False on idempotent replay — still "ok"
     except LedgerError as exc:
         raise ToolDenied(f"ledger rule: {exc}") from exc
+    if applied:  # publish the Finance domain event once per real posting (never on a replay)
+        event = LedgerEntryPosted(
+            event_name="LedgerEntryPosted",
+            event_id=uuid4().hex,
+            occurred_at=datetime.now(tz=UTC),
+            producer=principal,
+            data_classification=DataClassification.FINANCIAL,
+            subject_ref=SubjectRef(type="LedgerTransaction", id=txn.txn_id),
+            txn_id=txn.txn_id,
+            idempotency_key=txn.idempotency_key,
+            amount_minor=txn.magnitude,
+            currency=txn.currency,
+            payee=p.payee,
+            maker=principal,
+            checker=p.checker,
+        )
+        bus.publish(settings.ledger_topic, key=txn.txn_id, value=event.model_dump_json(by_alias=True))
     return txn.idempotency_key
 
 

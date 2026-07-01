@@ -96,3 +96,18 @@ class ModelEvaluationFailed(Envelope):
     eval_score: float
     failed_cases: list[str]
     reason: str
+
+
+class LedgerEntryPosted(Envelope):
+    """A payment was booked to the ledger — the Finance context's published event (see 04).
+
+    Emitted once per applied transaction (never on an idempotent replay); consumers integrate
+    downstream (analytics, reconciliation) without reading the ledger's private store."""
+
+    txn_id: str
+    idempotency_key: str
+    amount_minor: int
+    currency: str
+    payee: str
+    maker: str
+    checker: str | None = None

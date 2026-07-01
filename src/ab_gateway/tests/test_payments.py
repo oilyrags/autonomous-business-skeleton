@@ -2,11 +2,14 @@
 (double-entry, cap, maker-checker, payee allow-list, idempotency) on one money-movement call.
 Runs against `make up-infra`."""
 
+import json
 import uuid
 from collections.abc import Callable
 
 from fastapi.testclient import TestClient
 
+from ab_common import bus
+from ab_common.config import settings
 from ab_ledger import store as ledger
 
 AGENT = "executive.cmo_agent"
@@ -75,7 +78,7 @@ def test_payment_blocked_on_untrusted_input_flow(
     assert ledger.trial_balance() == 0  # injection could not move money
 
 
-def test_duplicate_payment_is_idempotent(
+def test_duplicate_payment_is_idempotent_and_emits_one_event(
     gateway_client: TestClient, clean_db: None, make_token: Callable[[str], str]
 ) -> None:
     token = make_token(AGENT)
@@ -85,3 +88,10 @@ def test_duplicate_payment_is_idempotent(
     r2 = gateway_client.post("/tool-call", headers={"Authorization": f"Bearer {token}"}, json=body)
     assert r1.status_code == 200 and r2.status_code == 200  # replay is a no-op success
     assert ledger.account_balance("external:acme") == 40_000  # not doubled
+
+    # The Finance domain event is published exactly once (fresh post), never on the replay.
+    group = f"test-ledger-{uuid.uuid4().hex[:8]}"
+    events = [json.loads(v) for v in bus.consume(settings.ledger_topic, group, max_messages=50, timeout=5.0)]
+    mine = [e for e in events if e.get("idempotencyKey") == a["idempotency_key"]]
+    assert len(mine) == 1
+    assert mine[0]["eventName"] == "LedgerEntryPosted" and mine[0]["amountMinor"] == 40_000

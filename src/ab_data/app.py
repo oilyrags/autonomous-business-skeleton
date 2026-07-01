@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import duckdb
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 
 from ab_data import config, freshness, ingest, pipeline
 from ab_data.metrics import REGISTRY, UnknownMetricError
@@ -74,6 +74,33 @@ def get_metric(name: str) -> dict[str, Any]:
         finally:
             con.close()
     return {"name": name, "value": int(row[0]) if row else 0, "grain": metric.grain}
+
+
+@app.get("/series/decisions_by_day")
+def decisions_by_day() -> list[dict[str, Any]]:
+    """Grain-aware data product: decision counts per UTC day, oldest first."""
+    dbpath = config.duckdb_path()
+    if not dbpath.exists():
+        return []
+    with _lock:
+        con = duckdb.connect(str(dbpath), read_only=True)
+        try:
+            rows = con.sql("SELECT day, decision_count FROM gold_decisions_by_day ORDER BY day").fetchall()
+        finally:
+            con.close()
+    return [{"day": r[0].isoformat(), "decision_count": int(r[1])} for r in rows]
+
+
+@app.get("/ready")
+def ready(response: Response) -> dict[str, Any]:
+    """Readiness gate: 200 only if the warehouse is built AND within the freshness SLA,
+    else 503. Distinct from /health (liveness) so consumers can gate on trustworthy data."""
+    with _lock:
+        f = freshness.read_freshness()
+    r = freshness.readiness(f, datetime.now(tz=UTC))
+    if not r.ready:
+        response.status_code = 503
+    return {"ready": r.ready, "reason": r.reason, "rows": f.rows}
 
 
 @app.get("/freshness")

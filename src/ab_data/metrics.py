@@ -64,6 +64,14 @@ def _canonical_registry() -> MetricRegistry:
             grain="all-time",
         )
     )
+    reg.register(
+        Metric(
+            name="active_decision_days_total",
+            description="Distinct UTC days on which at least one decision was recorded.",
+            sql="SELECT count(*) FROM gold_decisions_by_day",
+            grain="daily",
+        )
+    )
     return reg
 
 

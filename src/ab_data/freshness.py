@@ -78,3 +78,22 @@ def staleness(
         return Staleness(age_seconds=None, within_sla=False, sla_seconds=sla_seconds)
     age = (now - latest_ingested_at).total_seconds()
     return Staleness(age_seconds=age, within_sla=age <= sla_seconds, sla_seconds=sla_seconds)
+
+
+@dataclass(frozen=True)
+class Readiness:
+    """Whether the semantic layer is fit to serve trusted KPIs right now."""
+
+    ready: bool
+    reason: str
+
+
+def readiness(f: Freshness, now: datetime, sla_seconds: int = DEFAULT_SLA_SECONDS) -> Readiness:
+    """Ready only if the warehouse is built AND within the freshness SLA."""
+    if f.rows == 0:
+        return Readiness(ready=False, reason="warehouse not built")
+    s = staleness(f.latest_ingested_at, now, sla_seconds)
+    if not s.within_sla:
+        age = f"{s.age_seconds:.0f}s" if s.age_seconds is not None else "unknown"
+        return Readiness(ready=False, reason=f"stale: age {age} > SLA {sla_seconds}s")
+    return Readiness(ready=True, reason="ok")

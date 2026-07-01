@@ -51,6 +51,29 @@ def test_read_freshness_before_build(tmp_path: Path) -> None:
     assert f.latest_ingested_at is None
 
 
+def test_readiness_not_built_is_not_ready() -> None:
+    f = freshness.Freshness(rows=0, latest_event_at=None, latest_ingested_at=None)
+    r = freshness.readiness(f, datetime.now(tz=UTC))
+    assert r.ready is False
+    assert "not built" in r.reason
+
+
+def test_readiness_stale_is_not_ready() -> None:
+    ingested = datetime(2026, 6, 30, 12, 0, tzinfo=UTC)
+    f = freshness.Freshness(rows=5, latest_event_at=ingested, latest_ingested_at=ingested)
+    r = freshness.readiness(f, ingested + timedelta(seconds=600), sla_seconds=300)
+    assert r.ready is False
+    assert "stale" in r.reason
+
+
+def test_readiness_built_and_fresh_is_ready() -> None:
+    ingested = datetime(2026, 6, 30, 12, 0, tzinfo=UTC)
+    f = freshness.Freshness(rows=5, latest_event_at=ingested, latest_ingested_at=ingested)
+    r = freshness.readiness(f, ingested + timedelta(seconds=10), sla_seconds=300)
+    assert r.ready is True
+    assert r.reason == "ok"
+
+
 def test_read_freshness_after_build_reports_newest_event(tmp_path: Path) -> None:
     older = datetime(2026, 6, 29, 9, 0, tzinfo=UTC)
     newest = datetime(2026, 6, 30, 13, 0, tzinfo=UTC)

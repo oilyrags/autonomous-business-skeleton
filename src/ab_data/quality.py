@@ -28,6 +28,16 @@ def run_checks(con: duckdb.DuckDBPyConnection) -> list[QualityResult]:
     diff = int(recon[0]) if recon else 0
     results.append(QualityResult("gold_reconciles_to_silver", diff == 0, f"silver-gold diff = {diff}"))
 
+    # The daily grain must also reconcile to silver (no rows dropped by the day rollup).
+    recon_day = con.sql(
+        "SELECT (SELECT count(*) FROM silver_decisions) "
+        "     - (SELECT coalesce(sum(decision_count), 0) FROM gold_decisions_by_day)"
+    ).fetchone()
+    diff_day = int(recon_day[0]) if recon_day else 0
+    results.append(
+        QualityResult("gold_by_day_reconciles_to_silver", diff_day == 0, f"silver-day diff = {diff_day}")
+    )
+
     return results
 
 

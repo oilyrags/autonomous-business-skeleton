@@ -58,6 +58,20 @@ assert f['within_sla'] is True, f  # just ingested, so well inside the SLA
 print(f\"freshness OK: {f['rows']} rows, age {f['age_seconds']:.1f}s <= SLA {f['sla_seconds']}s\")
 "
 
+echo "=== readiness gate: 200 once built + within SLA ==="
+code=$(curl -sS -o /tmp/ready.json -w '%{http_code}' "$DATA/ready")
+[ "$code" = "200" ] || { echo "FAIL: /ready expected 200, got $code"; cat /tmp/ready.json; exit 1; }
+python3 -c "import json; d=json.load(open('/tmp/ready.json')); assert d['ready'] is True, d; print('ready OK:', d['reason'], d['rows'], 'rows')"
+
+echo "=== grain-aware series: decisions_by_day is non-empty and reconciles ==="
+curl -fsS "$DATA/series/decisions_by_day" | python3 -c "
+import sys, json
+days = json.load(sys.stdin)
+assert days, 'expected at least one day'
+assert sum(d['decision_count'] for d in days) >= $target, days
+print('series OK:', len(days), 'day(s), total', sum(d['decision_count'] for d in days))
+"
+
 echo "=== negative: an unknown metric is a 404, not a fabricated number ==="
 code=$(curl -sS -o /dev/null -w '%{http_code}' "$DATA/metrics/not_a_real_metric")
 [ "$code" = "404" ] || { echo "FAIL: expected 404 for unknown metric, got $code"; exit 1; }

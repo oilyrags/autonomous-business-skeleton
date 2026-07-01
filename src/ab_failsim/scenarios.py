@@ -72,10 +72,11 @@ def bad_payment() -> ScenarioResult:
     led.post(t, approved_payees=frozenset({"known"}))
     dup_rejected = led.post(t, approved_payees=frozenset({"known"})) is False
     over_cap = _raises(ApprovalRequired, lambda: validate(_pay("o", 150_000)))
-    new_payee = _raises(
-        ApprovalRequired,
-        lambda: validate(_pay("n", 50_000, payee="attacker_acct"), approved_payees=frozenset()),
+    # New payee derived from the destination account (payee field left None) — cannot be dodged.
+    external = Transaction(
+        "n", "kn", (Posting("external:attacker_acct", 50_000), Posting("cash", -50_000)), maker="cfo_agent"
     )
+    new_payee = _raises(ApprovalRequired, lambda: validate(external, approved_payees=frozenset()))
     contained = dup_rejected and over_cap and new_payee
     return ScenarioResult(
         "bad_payment",

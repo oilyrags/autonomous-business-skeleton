@@ -100,3 +100,14 @@ def test_new_payee_with_distinct_checker_is_valid() -> None:
         "np3", "knp3", tuple(small), maker="cfo_agent", checker="controller_agent", payee="new_vendor"
     )
     validate(t, approved_payees=frozenset())  # approved by a distinct checker
+
+
+def test_external_account_payment_requires_approval_even_with_no_payee_field() -> None:
+    # The payee is DERIVED from an external:<party> posting, so leaving payee=None can't dodge it.
+    t = Transaction(
+        "ex1", "kex1", (Posting("external:acme", 50_000), Posting("cash", -50_000)), maker="cfo_agent"
+    )
+    assert t.payees == frozenset({"acme"})
+    with pytest.raises(ApprovalRequired):
+        validate(t, approved_payees=frozenset())
+    validate(t, approved_payees=frozenset({"acme"}))  # on the allow-list -> ok

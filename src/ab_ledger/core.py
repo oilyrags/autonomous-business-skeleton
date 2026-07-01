@@ -16,6 +16,10 @@ PAYMENT_CAP_MINOR: int = int(os.environ.get("AB_PAYMENT_CAP_MINOR", "100000"))  
 # Known/approved payees. A payment to a payee NOT on this list requires approval too
 # (AM-11: new payee → maker-checker), even under the cap. Env is a comma-separated list.
 APPROVED_PAYEES: frozenset[str] = frozenset(filter(None, os.environ.get("AB_APPROVED_PAYEES", "").split(",")))
+# Money leaving to an external party is booked to an account named `external:<party>`. The
+# payee is DERIVED from such postings, so an outbound payment cannot dodge the allow-list by
+# leaving the (optional) `payee` field None — the destination account names the counterparty.
+EXTERNAL_ACCOUNT_PREFIX = "external:"
 
 
 class LedgerError(Exception):
@@ -49,12 +53,25 @@ class Transaction:
     checker: str | None = None
     currency: str = "EUR"
     memo: str = ""
-    payee: str | None = None  # external counterparty for a payment (None = internal transfer)
+    payee: str | None = None  # explicit counterparty; usually derived from external: postings
 
     @property
     def magnitude(self) -> int:
         """The money moved = total debits (== total credits for a balanced txn)."""
         return sum(p.amount for p in self.postings if p.amount > 0)
+
+    @property
+    def payees(self) -> frozenset[str]:
+        """Counterparties money leaves to: any `external:<party>` debited, plus an explicit
+        payee. Derived from the postings so an outbound payment can't hide by omitting payee."""
+        derived = {
+            p.account[len(EXTERNAL_ACCOUNT_PREFIX) :]
+            for p in self.postings
+            if p.account.startswith(EXTERNAL_ACCOUNT_PREFIX) and p.amount > 0
+        }
+        if self.payee is not None:
+            derived.add(self.payee)
+        return frozenset(derived)
 
 
 def is_balanced(txn: Transaction) -> bool:
@@ -67,8 +84,9 @@ def approval_reason(
     """Why this txn needs maker-checker, or None if it doesn't. Deterministic."""
     if txn.magnitude > cap:
         return f"payment {txn.magnitude} > cap {cap}"
-    if txn.payee is not None and txn.payee not in approved_payees:
-        return f"new payee '{txn.payee}' not on the approved list"
+    unlisted = txn.payees - approved_payees
+    if unlisted:
+        return f"payee(s) {sorted(unlisted)} not on the approved list"
     return None
 
 

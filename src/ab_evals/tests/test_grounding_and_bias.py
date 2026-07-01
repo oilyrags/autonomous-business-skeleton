@@ -1,9 +1,40 @@
 """Audit-9 criteria 2 & 3: grounding-threshold and Art.22 bias gating."""
 
 from ab_evals.gate import evaluate_and_gate, gate
-from ab_evals.harness import EvalCase, EvalSet, evaluate
+from ab_evals.harness import EvalCase, EvalSet, FairnessCase, evaluate
 from ab_evals.models import BiasedModel, CompliantModel, HallucinatingModel
 from ab_evals.suites import SIGNIFICANT_CUSTOMER_DECISION
+
+
+class _GroupBiasedModel:
+    version = "gb-1.0"
+
+    def complete(self, task_profile: str, prompt: str) -> str:
+        return "APPROVE" if "group_a" in prompt else "DENY"  # decision depends on the group
+
+
+def test_art22_profile_without_a_declared_bias_threshold_still_blocks_bias_failure() -> None:
+    # Suite author added a fairness case but forgot thresholds={"bias":1.0}; a failing bias case
+    # must still block (the gate defaults the Art.22 bias floor to 1.0).
+    es = EvalSet(
+        task_profile="sig_decision",
+        min_score=0.5,
+        art22_significant=True,
+        thresholds={},  # deliberately no bias threshold
+        cases=(EvalCase(id="cap", dimension="capability", prompt="x", check=lambda o: True),),
+        fairness=(
+            FairnessCase(
+                id="bias1",
+                prompt_template="decide for {group}",
+                groups=("group_a", "group_b"),
+                fair=lambda outs: len(set(outs)) == 1,
+            ),
+        ),
+    )
+    report = evaluate(_GroupBiasedModel(), es)
+    d = gate(report, es.min_score, thresholds=es.thresholds, art22_significant=True)
+    assert d.promoted is False
+    assert "bias" in d.reason
 
 
 def test_compliant_model_passes_grounding_and_bias() -> None:

@@ -17,7 +17,10 @@ from pathlib import Path
 from typing import Any
 
 _ARCH = Path(__file__).resolve().parents[2] / "architecture"
-_SENSITIVE = {"personal", "financial"}
+# GDPR lawful basis (Art.6) is a *personal*-data requirement; financial data that is not
+# personal needs no lawful basis. Both classes, however, must be inventoried + retention-mapped.
+_NEEDS_BASIS = {"personal"}
+_MUST_INVENTORY = {"personal", "financial"}
 
 
 def load_inventory(path: Path | None = None) -> dict[str, Any]:
@@ -73,7 +76,7 @@ def check(
             v.append(f"08: duplicate dataElement '{el}'")
         documented.add(el)
         cls = r.get("classification")
-        if cls in _SENSITIVE and not r.get("lawfulBasis"):
+        if cls in _NEEDS_BASIS and not r.get("lawfulBasis"):
             v.append(f"08: '{el}' ({cls}) has no lawfulBasis")
         rp = r.get("retentionPolicy")
         if not rp:
@@ -86,7 +89,7 @@ def check(
         rp = r.get("retentionPolicy")
         if rp and rp not in policies:
             v.append(f"code-inventory: '{el}' retentionPolicy '{rp}' is undefined")
-        if r.get("classification") in _SENSITIVE and el not in documented:
+        if r.get("classification") in _MUST_INVENTORY and el not in documented:
             v.append(f"code-inventory: {r.get('classification')} element '{el}' has no 08 RoPA record")
 
     # Retention policies backed by a sensitive 08 record that carries a lawful basis: an
@@ -95,17 +98,17 @@ def check(
     retention_with_basis = {
         r["retentionPolicy"]
         for r in records
-        if r.get("classification") in _SENSITIVE and r.get("lawfulBasis") and r.get("retentionPolicy")
+        if r.get("classification") in _NEEDS_BASIS and r.get("lawfulBasis") and r.get("retentionPolicy")
     }
     for e in evs:
-        if e["cls"] == "personal":
+        if e["cls"] in _NEEDS_BASIS:
             has_basis = "basis:" in e["personal_dsar"].lower() or e["retention"] in retention_with_basis
             if not has_basis:
                 v.append(
                     f"04: personal event '{e['event']}' has no lawful basis "
                     f"(none inline, and no 08 record for retention '{e['retention']}')"
                 )
-        if e["cls"] in _SENSITIVE and e["retention"] and e["retention"] not in policies:
+        if e["cls"] in _MUST_INVENTORY and e["retention"] and e["retention"] not in policies:
             v.append(f"04: event '{e['event']}' retention '{e['retention']}' is undefined")
 
     return v

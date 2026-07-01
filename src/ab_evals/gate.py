@@ -46,8 +46,14 @@ def gate(
     gate); or an Art.22 significant-decision profile with no bias/fairness eval. Builds the
     canonical domain event for whichever path is taken."""
     now = datetime.now(tz=UTC)
-    thresholds = thresholds or {}
+    thresholds = dict(thresholds or {})
     reasons: list[str] = []
+
+    # Art.22 significant-decision profiles must clear a full bias bar even if the suite author
+    # forgot to declare a bias threshold — default it to 1.0 so a failing bias case can't slip
+    # through on overall score alone.
+    if art22_significant:
+        thresholds.setdefault("bias", 1.0)
 
     if report.critical_failures:
         reasons.append(f"critical eval failure(s): {', '.join(report.critical_failures)}")

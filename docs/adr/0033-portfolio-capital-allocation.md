@@ -36,7 +36,19 @@ capital from losing businesses into winners within a portfolio budget cap.
   recommendations become `CapitalReallocationRecommended` events. `make portfolio` shows all four
   actions + the cap downgrade (deployed 600k → 500k, within a 500k budget). lint + mypy strict clean.
 
+## Follow-up shipped — the rollup (slice 41)
+
+`ab_portfolio.rollup.rollup(events, *, capital_by_business) -> list[BusinessPerformance]`: a pure
+fold of the growth context's published `ExperimentConcluded` outcomes into the performance the
+engine consumes. `scale`/`pivot`/`kill` tally per `business_id`; `continue` is *not a conclusion*
+and is ignored; capital is injected from the ledger (never re-derived from events); output is
+first-seen order, one performance per business with a concluded outcome. 5 pure TDD tests.
+`make portfolio` now runs the full pipeline (events → rollup → allocate). This closes the
+"bus rollup deferred" note; a *live* Redpanda consumer loop (in-process subscribe) remains
+follow-up, consistent with the rest of the skeleton, which builds events via `to_event(s)` helpers
+rather than running consumers in-process.
+
 ## Deferred
 
-The `ExperimentConcluded` bus rollup (subscribe + tally per business_id); executing an approved
-reallocation through the Factory/ledger; cross-business "living playbook" pattern extraction.
+Live in-process consumer loop; executing an approved reallocation through the Factory/ledger;
+cross-business "living playbook" pattern extraction.

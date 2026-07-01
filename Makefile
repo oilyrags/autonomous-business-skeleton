@@ -25,14 +25,16 @@ spire-verify: ## verify SVID issuance + an agent<->gateway mTLS handshake
 	./scripts/spire-verify.sh
 
 spire-mtls:  ## bring up all ghostunnel mTLS sidecars (needs `make up` + `make spire-up`)
-	docker compose --profile spiffe up -d gateway-proxy agent-proxy opa-proxy gateway-opa-proxy postgres-proxy gateway-pg-proxy
+	docker compose --profile spiffe up -d gateway-proxy agent-proxy opa-proxy gateway-opa-proxy \
+		postgres-proxy gateway-pg-proxy audit-pg-proxy killswitch-pg-proxy
 
 spire-mtls-verify: ## verify a live request routes over SPIFFE mTLS to the gateway
 	./scripts/spire-mtls-verify.sh
 
-spire-secure: ## secured topology: repoint agent+gateway through sidecars + all proxies (needs `make up` + `make spire-up`)
+spire-secure: ## secured topology: repoint all app clients through sidecars + all proxies (needs `make up` + `make spire-up`)
 	docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe up -d \
-		gateway agent gateway-proxy agent-proxy opa-proxy gateway-opa-proxy postgres-proxy gateway-pg-proxy
+		gateway agent audit killswitch gateway-proxy agent-proxy opa-proxy gateway-opa-proxy \
+		postgres-proxy gateway-pg-proxy audit-pg-proxy killswitch-pg-proxy
 
 spire-secure-verify: ## verify agent->gateway AND gateway->OPA both run over mTLS
 	./scripts/spire-secure-verify.sh

@@ -189,12 +189,50 @@ services:
       - --target=postgres:5432
       - --unsafe-target
       - --allow-uri=spiffe://ab.internal/gateway
+      - --allow-uri=spiffe://ab.internal/audit
+      - --allow-uri=spiffe://ab.internal/killswitch
       - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
     volumes:
       - spire-sockets:/opt/spire/sockets
     ports: ["16432:6432"]
     depends_on:
       postgres: {condition: service_healthy}
+      spire-agent: {condition: service_started}
+
+  audit-pg-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1005:1005"          # audit identity
+    pid: "service:spire-agent"
+    command:
+      - client
+      - --listen=0.0.0.0:5432
+      - --unsafe-listen
+      - --target=postgres-proxy:6432
+      - --verify-uri=spiffe://ab.internal/postgres
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    depends_on:
+      postgres-proxy: {condition: service_started}
+      spire-agent: {condition: service_started}
+
+  killswitch-pg-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1006:1006"          # killswitch identity
+    pid: "service:spire-agent"
+    command:
+      - client
+      - --listen=0.0.0.0:5432
+      - --unsafe-listen
+      - --target=postgres-proxy:6432
+      - --verify-uri=spiffe://ab.internal/postgres
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    depends_on:
+      postgres-proxy: {condition: service_started}
       spire-agent: {condition: service_started}
 
   gateway-pg-proxy:

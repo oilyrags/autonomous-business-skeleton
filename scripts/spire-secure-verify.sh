@@ -15,6 +15,15 @@ done
 [ -n "$ok" ] || { echo "FAIL: agent /act never returned 200"; cat /tmp/act.json 2>/dev/null || true; exit 1; }
 python3 -c "import json; d=json.load(open('/tmp/act.json')); assert d['gateway_status']==200 and d['body']['status']=='ok', d; print('act OK:', d['decision_id'])"
 
+echo "=== audit service reads its DB over mTLS (audit-pg-proxy) ==="
+curl -fsS "http://localhost:18081/audit?action=decision_registry.write" \
+  | python3 -c "import sys, json; rows=json.load(sys.stdin); assert any(r['outcome']=='allow' for r in rows), rows; print('audit read OK:', len(rows), 'record(s)')"
+
+echo "=== killswitch service writes its DB over mTLS (killswitch-pg-proxy) ==="
+curl -fsS -X POST http://localhost:18002/activate -H 'Content-Type: application/json' \
+  -d '{"scope":"agent","target_id":"spiffe-drill-test","reason":"mtls drill","activated_by":"verify"}' \
+  | python3 -c "import sys, json; d=json.load(sys.stdin); assert d['status']=='activated', d; print('killswitch write OK')"
+
 echo "=== negative: proxies reject a client with no SVID ==="
 for hostport in "opa-proxy:19181" "postgres-proxy:16432"; do
   name=${hostport%%:*}; port=${hostport##*:}
@@ -25,4 +34,4 @@ for hostport in "opa-proxy:19181" "postgres-proxy:16432"; do
   fi
 done
 
-echo "spire-secure-verify: PASS (agent->gateway, gateway->OPA, gateway->Postgres over mTLS)"
+echo "spire-secure-verify: PASS (agent->gateway, gateway->OPA, and all app DB clients over mTLS)"

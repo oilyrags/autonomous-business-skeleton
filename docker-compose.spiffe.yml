@@ -19,3 +19,15 @@ services:
         condition: service_started
       gateway-pg-proxy:
         condition: service_started
+  audit:
+    environment:
+      AB_PG_DSN: postgresql://ab:ab@audit-pg-proxy:5432/ab?sslmode=disable
+    depends_on:
+      audit-pg-proxy:
+        condition: service_started
+  killswitch:
+    environment:
+      AB_PG_DSN: postgresql://ab:ab@killswitch-pg-proxy:5432/ab?sslmode=disable
+    depends_on:
+      killswitch-pg-proxy:
+        condition: service_started

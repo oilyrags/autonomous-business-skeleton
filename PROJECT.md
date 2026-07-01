@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-07-01 (gateway→Postgres mTLS — slice 12)
+- **Last updated:** 2026-07-01 (all app DB clients over mTLS — slice 13)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
@@ -98,7 +98,8 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 - [x] **SVID rotation drill** (slice 10): short-TTL (60s) SVIDs auto-rotate; agent→gateway mTLS serves with zero downtime across a rotation (serial changed, 40/40 requests ok). `make spire-rotation-drill`. *(2026-07-01)*
 - [x] **gateway→OPA over mTLS** (slice 11, ADR-0008): ghostunnel opa-proxy/gateway-opa-proxy + `opa` SVID; `/act` authorizes via the mTLS'd OPA hop (200); no-SVID rejected. CI verifies both hops. *(2026-07-01)*
 - [x] **gateway→Postgres over mTLS** (slice 12, ADR-0009): postgres-proxy/gateway-pg-proxy + `postgres` SVID; TCP tunnel of the Postgres wire; gateway startup + `/act` persist over mTLS; no-SVID rejected. `init_db` retry. CI verifies all three hops. *(2026-07-01)*
-- [ ] Remaining SPIFFE work: route `audit`/`killswitch` DB clients through sidecars (Postgres mTLS-only); gateway→Redpanda (Kafka advertised-listeners break naive TCP proxying); production SPIRE node attestation.
+- [x] **All app DB clients over mTLS** (slice 13, ADR-0010): `audit`/`killswitch` get client sidecars + SPIFFE identities; each service reads/writes Postgres over mTLS; no-SVID rejected. CI verifies. *(2026-07-01)*
+- [ ] Remaining SPIFFE work: make Postgres **mTLS-only** (Postgres-native TLS or network policy — plaintext port still open for host tests); gateway→Redpanda (Kafka advertised-listeners); production SPIRE node attestation.
 - [ ] Production Keycloak/Vault modes.
 - [ ] Real model providers behind the gateway (vLLM / managed), replacing the stub.
 - [ ] Phase 2 — Core data (canonical model, data inventory, semantic layer) per `architecture/15_implementation_roadmap.md`.
@@ -197,6 +198,7 @@ autonomous-business/
 | 2026-07-01 | Opus 4.8 | Slice 10: SVID rotation drill — 60s-TTL SVIDs auto-rotate; agent→gateway mTLS zero downtime across rotation (serial changed, 40/40 ok). `make spire-rotation-drill`; runnable drill (not CI). |
 | 2026-07-01 | Opus 4.8 | Slice 11 (ADR-0008): gateway→OPA over mTLS (opa-proxy/gateway-opa-proxy + `opa` SVID, reusing the sidecar pattern). `/act` authorizes via mTLS'd OPA (200); no-SVID rejected. CI `docker` job verifies both hops. |
 | 2026-07-01 | Opus 4.8 | Slice 12 (ADR-0009): gateway→Postgres over mTLS (postgres-proxy/gateway-pg-proxy + `postgres` SVID; TCP tunnel of the PG wire; DSN sslmode=disable; init_db retry). Gateway startup + `/act` persist over mTLS; no-SVID rejected. CI verifies all three hops. |
+| 2026-07-01 | Opus 4.8 | Slice 13 (ADR-0010): all app DB clients over mTLS — audit (uid 1005) + killswitch (uid 1006) client sidecars + identities; postgres-proxy allows all three. Verified audit read + killswitch write + gateway persist over mTLS. CI verifies. |
 
 ---
 

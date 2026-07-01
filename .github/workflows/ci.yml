@@ -54,6 +54,8 @@ jobs:
         run: make obs
       - name: Living playbooks (distil winners -> reusable blueprint)
         run: make playbook
+      - name: Per-business memory (scoped recall isolation)
+        run: make memory
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

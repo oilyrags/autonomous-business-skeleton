@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth factory portfolio econ llm-budget loop revenue ads mvp sales obs playbook demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth factory portfolio econ llm-budget loop revenue ads mvp sales obs playbook memory demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
 
 # Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
 # and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
@@ -130,6 +130,9 @@ obs:         ## observability demo — fleet overview + cost attribution + anoma
 
 playbook:    ## living-playbook demo — distil winners into a reusable blueprint, then instantiate
 	PYTHONPATH=src uv run python -m ab_playbook
+
+memory:      ## per-business memory demo — scoped recall, no cross-business leakage (stub store)
+	PYTHONPATH=src uv run python -m ab_memory
 
 factory:     ## business factory demo — provision + readiness-gate businesses (per business_id)
 	PYTHONPATH=src uv run python -m ab_factory

@@ -47,6 +47,15 @@ _DDL = [
         activated_at  timestamptz NOT NULL DEFAULT now()
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS outbox (
+        notification_id  text PRIMARY KEY,
+        principal        text NOT NULL,
+        recipient        text NOT NULL,
+        body             text NOT NULL,
+        created_at       timestamptz NOT NULL DEFAULT now()
+    )
+    """,
 ]
 
 

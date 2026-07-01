@@ -45,7 +45,14 @@ def list_tools() -> list[dict[str, object]]:
     """Discover the governed tool catalog (name + contract). Authorization is still
     enforced per call (OPA + untrusted-input gate); this only advertises what exists."""
     return [
-        {"name": s.name, "side_effect": s.side_effect, "sensitive": s.sensitive, "description": s.description}
+        {
+            "name": s.name,
+            "side_effect": s.side_effect,
+            "sensitive": s.sensitive,
+            "egress": s.egress,
+            "clearance": s.clearance.value,
+            "description": s.description,
+        }
         for s in tools.REGISTRY.values()
     ]
 
@@ -72,7 +79,7 @@ def tool_call(
             content=ToolCallResult(status="denied", reason=f"invalid token: {exc}").model_dump(),
         )
 
-    resource = str(req.args.get("decision_id", req.tool))
+    resource = str(req.args.get("decision_id") or req.args.get("notification_id") or req.tool)
 
     # 2. Revocation (source of truth in identity, outside the gateway).
     if revocation.is_revoked(principal):
@@ -103,26 +110,35 @@ def tool_call(
     if tools.blocked_by_input_trust(spec, untrusted_input=req.untrusted_input):
         return _deny(principal, req.tool, resource, "sensitive tool blocked under untrusted-input flow", 403)
 
-    # 5b. Dispatch (deterministic side-effect).
+    # 5b. Exfiltration guard: an egress tool may not transmit data above its clearance.
+    if tools.exfiltration_blocked(spec, data_classification=req.data_classification):
+        reason = (
+            f"data classification '{req.data_classification}' exceeds egress clearance '{spec.clearance}'"
+        )
+        return _deny(principal, req.tool, resource, reason, 403)
+
+    # 5c. Dispatch (deterministic side-effect).
     decision_id = spec.handler(principal, req.args)
 
     # 6. Audit the allowed action.
     audit.append(principal, req.tool, decision_id, "allow", {"tool": req.tool})
 
-    # 7. Emit the domain event.
-    event = AgentDecisionMade(
-        event_name="AgentDecisionMade",
-        event_id=str(uuid4()),
-        occurred_at=datetime.now(tz=UTC),
-        producer=principal,
-        data_classification=DataClassification.CONFIDENTIAL,
-        subject_ref=SubjectRef(type="Decision", id=decision_id),
-        decision_id=decision_id,
-        agent_id=principal,
-        authority_level=int(req.args.get("authority_level", 0)),
-        approval_status=ApprovalStatus(req.args.get("approval_status", "autonomous_within_policy")),
-    )
-    bus.publish(settings.decision_topic, key=decision_id, value=event.model_dump_json(by_alias=True))
+    # 7. Emit the domain event — only for tools that record a Decision (per their contract),
+    #    so non-decision tools (e.g. egress) don't inflate the decision stream.
+    if spec.emits_decision:
+        event = AgentDecisionMade(
+            event_name="AgentDecisionMade",
+            event_id=str(uuid4()),
+            occurred_at=datetime.now(tz=UTC),
+            producer=principal,
+            data_classification=DataClassification.CONFIDENTIAL,
+            subject_ref=SubjectRef(type="Decision", id=decision_id),
+            decision_id=decision_id,
+            agent_id=principal,
+            authority_level=int(req.args.get("authority_level", 0)),
+            approval_status=ApprovalStatus(req.args.get("approval_status", "autonomous_within_policy")),
+        )
+        bus.publish(settings.decision_topic, key=decision_id, value=event.model_dump_json(by_alias=True))
 
     return JSONResponse(
         status_code=200,

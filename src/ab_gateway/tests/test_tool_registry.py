@@ -1,6 +1,7 @@
-"""Infra-free: the tool registry contract + the untrusted-input fail-closed rule."""
+"""Infra-free: the tool registry contract + the untrusted-input & exfiltration rules."""
 
 from ab_gateway import tools
+from ab_schemas.events import DataClassification
 
 
 def test_registered_tool_has_a_contract() -> None:
@@ -39,3 +40,20 @@ def test_non_sensitive_tool_runs_even_on_untrusted_input() -> None:
         description="read-only",
     )
     assert tools.blocked_by_input_trust(read_tool, untrusted_input=True) is False
+
+
+def test_egress_tool_blocks_data_above_clearance() -> None:
+    egress = tools.get("notify.external")
+    assert egress is not None and egress.egress is True
+    # clearance is INTERNAL: internal/public pass; confidential/personal/financial are blocked.
+    assert tools.exfiltration_blocked(egress, data_classification=DataClassification.INTERNAL) is False
+    assert tools.exfiltration_blocked(egress, data_classification=DataClassification.PUBLIC) is False
+    assert tools.exfiltration_blocked(egress, data_classification=DataClassification.CONFIDENTIAL) is True
+    assert tools.exfiltration_blocked(egress, data_classification=DataClassification.PERSONAL) is True
+    assert tools.exfiltration_blocked(egress, data_classification=DataClassification.FINANCIAL) is True
+
+
+def test_non_egress_tool_is_never_exfiltration_blocked() -> None:
+    write = tools.get("decision_registry.write")
+    assert write is not None and write.egress is False
+    assert tools.exfiltration_blocked(write, data_classification=DataClassification.FINANCIAL) is False

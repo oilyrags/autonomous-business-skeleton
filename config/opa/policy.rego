@@ -12,3 +12,10 @@ allow if {
 	input.action == "decision_registry.write"
 	input.principal == "executive.cmo_agent"
 }
+
+# Slice 25: the skeleton agent may send external notifications. Policy authorizes the
+# capability; the gateway's egress guard still blocks over-classified data (exfiltration).
+allow if {
+	input.action == "notify.external"
+	input.principal == "executive.cmo_agent"
+}

@@ -30,6 +30,10 @@ $SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.inte
   -selector unix:uid:1006 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
 $SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.internal/identity \
   -selector unix:uid:1007 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
+$SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.internal/redpanda \
+  -selector unix:uid:1008 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
+$SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.internal/kafka-client \
+  -selector unix:uid:1009 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
 
 $DC exec -T spire-server sh -c "printf '%s' '$TOKEN' > /opt/spire/sockets/jointoken"
 $DC rm -sf spire-agent >/dev/null 2>&1 || true

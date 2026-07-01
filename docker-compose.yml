@@ -24,9 +24,13 @@ services:
       - --smp=1
       - --overprovisioned
       - --node-id=0
-      # Dual listeners: internal for in-container services, external for host clients.
-      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      # Listeners: internal (in-container plaintext), external (host clients), and mtls
+      # (the SPIFFE path). The mtls listener advertises `kafka-mtls:29092` — the address
+      # of the client-side ghostunnel — so that after the metadata exchange clients redial
+      # back through the mTLS tunnel instead of connecting to the broker directly. That
+      # advertised-listener redirect is the crux of doing Kafka mTLS via a TCP proxy.
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092,mtls://0.0.0.0:29093
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092,mtls://kafka-mtls:29092
     ports: ["19092:19092"]
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
@@ -274,6 +278,50 @@ services:
       - spire-sockets:/opt/spire/sockets
     depends_on:
       postgres-proxy: {condition: service_started}
+      spire-agent: {condition: service_started}
+
+  # gateway/audit/killswitch/data -> Redpanda over mTLS. Kafka's advertised-listener
+  # redirect (a naive TCP tunnel breaks: the broker tells the client to reconnect at its
+  # own address, bypassing the proxy) is solved with a dedicated Redpanda `mtls` listener
+  # that advertises the client-proxy address (kafka-mtls:29092). Unlike the DB hops, all
+  # bus clients share ONE client proxy identity (`kafka-client`): per-client proxies would
+  # each need their own advertised listener on the broker — deferred. redpanda-proxy is the
+  # server side (terminates mTLS -> redpanda:29093); kafka-mtls is the shared client side.
+  redpanda-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1008:1008"          # `redpanda` bus-server identity
+    pid: "service:spire-agent"
+    command:
+      - server
+      - --listen=0.0.0.0:29092
+      - --target=redpanda:29093
+      - --unsafe-target        # plaintext hop to Redpanda's mtls listener is container-internal
+      - --allow-uri=spiffe://ab.internal/kafka-client
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    ports: ["29092:29092"]
+    depends_on:
+      redpanda: {condition: service_healthy}
+      spire-agent: {condition: service_started}
+
+  kafka-mtls:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1009:1009"          # shared `kafka-client` identity for all bus producers/consumers
+    pid: "service:spire-agent"
+    command:
+      - client
+      - --listen=0.0.0.0:29092
+      - --unsafe-listen        # plaintext Kafka wire from the app; ghostunnel adds mTLS
+      - --target=redpanda-proxy:29092
+      - --verify-uri=spiffe://ab.internal/redpanda
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    depends_on:
+      redpanda-proxy: {condition: service_started}
       spire-agent: {condition: service_started}
 
   keycloak:

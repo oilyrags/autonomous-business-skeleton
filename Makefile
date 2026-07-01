@@ -1,11 +1,12 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check data build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check data build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
 
 # Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
 # and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
 # infra on the host-published ports) — the containerized app path is always mTLS.
 COMPOSE_SECURE := docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe
 PROXIES := gateway-proxy agent-proxy opa-proxy gateway-opa-proxy postgres-proxy \
-	gateway-pg-proxy audit-pg-proxy killswitch-pg-proxy identity-pg-proxy
+	gateway-pg-proxy audit-pg-proxy killswitch-pg-proxy identity-pg-proxy \
+	redpanda-proxy kafka-mtls
 APPSVCS := identity gateway killswitch audit agent data
 
 sync:        ## install the uv workspace
@@ -43,6 +44,9 @@ spire-mtls-verify: ## verify a live request routes over SPIFFE mTLS to the gatew
 
 spire-secure-verify: ## verify all hops + DB clients run over mTLS (and Postgres is isolated)
 	./scripts/spire-secure-verify.sh
+
+spire-bus-verify: ## verify gateway/audit/data <-> Redpanda run over mTLS (produce + consume)
+	./scripts/spire-bus-verify.sh
 
 spire-rotation-drill: ## short-TTL SVIDs; prove rotation + zero-downtime mTLS (needs `make up`)
 	docker compose --profile spiffe rm -sf spire-server spire-agent gateway-proxy agent-proxy >/dev/null 2>&1 || true

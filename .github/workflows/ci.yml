@@ -60,6 +60,8 @@ jobs:
         run: |
           ./scripts/spire-mtls-verify.sh
           ./scripts/spire-secure-verify.sh
+      - name: Verify bus mTLS (gateway produce + audit/data consume over mTLS)
+        run: ./scripts/spire-bus-verify.sh
       - name: Verify data service (canonical KPIs from live bus events)
         run: ./scripts/data-verify.sh
       - name: Dump logs on failure

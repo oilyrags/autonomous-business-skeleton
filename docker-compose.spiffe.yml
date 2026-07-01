@@ -20,20 +20,36 @@ services:
       # opa:8181 / postgres:5432. sslmode=disable: TLS is done by ghostunnel, not Postgres.
       AB_OPA_URL: http://gateway-opa-proxy:8181
       AB_PG_DSN: postgresql://ab:ab@gateway-pg-proxy:5432/ab?sslmode=disable
+      # produce to Redpanda over mTLS via the shared kafka-mtls client proxy.
+      AB_KAFKA: kafka-mtls:29092
     depends_on:
       gateway-opa-proxy:
         condition: service_started
       gateway-pg-proxy:
         condition: service_started
+      kafka-mtls:
+        condition: service_started
   audit:
     environment:
       AB_PG_DSN: postgresql://ab:ab@audit-pg-proxy:5432/ab?sslmode=disable
+      AB_KAFKA: kafka-mtls:29092   # consume decisions over mTLS
     depends_on:
       audit-pg-proxy:
+        condition: service_started
+      kafka-mtls:
         condition: service_started
   killswitch:
     environment:
       AB_PG_DSN: postgresql://ab:ab@killswitch-pg-proxy:5432/ab?sslmode=disable
+      AB_KAFKA: kafka-mtls:29092   # produce/consume over mTLS
     depends_on:
       killswitch-pg-proxy:
+        condition: service_started
+      kafka-mtls:
+        condition: service_started
+  data:
+    environment:
+      AB_KAFKA: kafka-mtls:29092   # consume decisions over mTLS
+    depends_on:
+      kafka-mtls:
         condition: service_started

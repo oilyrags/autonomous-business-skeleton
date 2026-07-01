@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-07-01 (Portkey model provider — slice 22)
+- **Last updated:** 2026-07-01 (grounding + bias eval gates, Audit 9 closed — slice 23)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
@@ -59,11 +59,11 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 | 16 | `16_verification_report.md` | ✅ Done | 12 audits run |
 | — | `business_skeleton.md` | ✅ Done | MVP + deferrals |
 
-**Verification result (from `16`):** Accepted as buildable Mode-B design. **0 open design gaps.** **5 of 12 audits are CONDITIONAL** — they require build-time proof (running code), not design changes:
+**Verification result (from `16`):** Accepted as buildable Mode-B design. **0 open design gaps.** Originally 5 CONDITIONAL; **Audit 9 (AI) now PASS (build-proven, slice 23)**, leaving **4 of 12 audits CONDITIONAL** — they require build-time proof (running code), not design changes:
 - Audit 4 (compliance lawful-basis): CI check that personal data has an `08` entry.
 - Audit 6 (security): kill-switch drill within SLA; prompt-injection/exfiltration tests.
 - Audit 7 (finance): ledger-balance invariant; double-payment failure-injection; maker-checker.
-- Audit 9 (AI): ~~eval gate blocks a bad model~~ **DONE (slice 21, ADR-0018)**; grounding threshold; bias evals for Art.22 still pending.
+- ~~Audit 9 (AI): eval gate blocks a bad model; grounding threshold; bias evals for Art.22.~~ **CLOSED — PASS (slices 21+23, ADR-0018/0020): all three build-time criteria proven; `make eval` in CI.**
 - Audit 12 (failure-injection): run the scenario suite, remediate findings.
 
 ---
@@ -109,6 +109,7 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 - [ ] Bus hardening remainder: per-client bus SVIDs (would need per-listener advertised addrs); drop host-published plaintext listeners in a prod profile; production SPIRE node attestation (join-token is dev-only).
 - [x] **Model eval + promotion gate** (slice 21, ADR-0018) — **Phase 3 (agent platform) STARTED**: `ab_evals` code-defined eval harness (per-profile `EvalSet` of deterministic cases w/ capability/safety dimensions + `critical` flag); `gate()` blocks on any critical failure or score<threshold, emitting canonical `ModelPromoted`/`ModelEvaluationFailed` (added to `ab_schemas`). `model_gateway` now serves a profile only if its model passed the gate (PromotionRegistry seeded at import); un-gated profile → deterministic fallback, never a silent guess. `make eval` = CI release gate (blocks a prompt-injection leaker + a low-capability model; self-checks the gate has teeth). +6 infra-free tests. **Closes the first of Audit 9's three build-time criteria** (`architecture/16`). *(2026-07-01)*
 - [x] **Portkey model provider** (slice 22, ADR-0019): model gateway can now select & use real models via **Portkey** (portkey.ai AI-gateway, OpenAI-compatible; cloud or self-hosted OSS). `ab_gateway/providers.py` (`PortkeyModel` impl of `Model`, lazy `portkey-ai` import, injectable client) + `model_routes.py` (task-profile → Portkey config/model/virtual-key, all env-overridable). `select_model()` picks by `AB_MODEL_PROVIDER` (default `stub` → offline/CI unchanged). A Portkey model **must still pass the eval gate** to serve (selecting it never bypasses governance; un-gated → abstain, never called). Optional `models` dep group. +6 infra-free tests (injected fake client, no network); OSS gateway image confirmed to boot. *(2026-07-01)*
+- [x] **Grounding + bias eval gates — Audit 9 CLOSED** (slice 23, ADR-0020): per-dimension `thresholds` on `EvalSet` (grounding gate = a `grounding` dimension @ 1.0); `FairnessCase` paired/metamorphic bias eval (decision invariant across protected-attribute groups); gate **requires** a bias eval for `art22_significant` profiles. New `significant_customer_decision` Art.22 profile (grounding + fairness). Reference models: CompliantModel→promoted, HallucinatingModel→blocked (grounding), BiasedModel→blocked (bias). `make eval` demonstrates all three Audit-9 criteria. +5 infra-free tests. **`architecture/16` Audit 9 → PASS (build-proven); CONDITIONAL count 5→4.** *(2026-07-01)*
 - [ ] Production Keycloak/Vault modes.
 - [ ] Real model providers behind the gateway (vLLM / managed), replacing the stub.
 - [ ] Phase 2 continue — Cube/dbt-MetricFlow server; time-windowed/grain-aware KPIs; freshness SLAs; Iceberg + Trino + OpenMetadata; more KPIs & dbt tests.
@@ -125,7 +126,7 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 - [ ] **Phase 2 — Core data:** canonical model, data inventory, Iceberg lakehouse, dbt, Cube semantic layer, catalog/lineage, classification-at-ingestion.
 - [ ] **Phase 3 — Agent platform:** model gateway, tool registry, agent identity, memory, eval harness + Langfuse, OTel tracing.
 - [ ] **Phase 4 — Product factory** → **5 CRM/Sales/Support** → **6 Finance & compliance** → **7 C-suite & Decision OS** → **8 Portfolio operation** → **9 Continuous optimization.**
-- [ ] **Close the 5 CONDITIONAL audits** with the build-time proofs listed in section 3 above.
+- [ ] **Close the remaining 4 CONDITIONAL audits** (4 compliance-CI, 6 security, 7 finance, 12 failure-injection) with the build-time proofs listed in section 3 above. *(Audit 9 AI closed in slice 23.)*
 
 ### Decisions still needed from the user (when relevant)
 - Whether to initialize a git repo for the project.
@@ -217,6 +218,7 @@ autonomous-business/
 | 2026-07-01 | Opus 4.8 | Slice 20 (ADR-0017): **Redpanda network isolation** — moved Redpanda to an isolated `busnet` (only redpanda + redpanda-proxy attach); redpanda-proxy bridges default↔busnet as the sole path in. App services have no direct route (name doesn't resolve). Host keeps published `localhost:19092`. spire-bus-verify gains an isolation check. Verified live: bus mTLS still works, gateway cannot reach redpanda:9092/:29093 directly, host port OK, no regression. Both Postgres + Redpanda now isolated; every service hop mTLS. |
 | 2026-07-01 | Opus 4.8 | Slice 21 (ADR-0018): **model eval + promotion gate** (Phase 3 start) — `ab_evals` code-defined eval harness (per-profile `EvalSet`, capability + safety dims, `critical` flag); `gate()` blocks on critical failure or score<threshold → `ModelPromoted`/`ModelEvaluationFailed` (new `ab_schemas` events). `model_gateway` serves only eval-gated models (PromotionRegistry seeded at import; un-gated → deterministic fallback). `make eval` CI release gate blocks a prompt-injection leaker + a low-capability model and self-checks the gate has teeth. +6 infra-free tests; existing `test_model_gateway` still green. Closes 1st of Audit 9's 3 criteria (updated `architecture/16`). |
 | 2026-07-01 | Opus 4.8 | Slice 22 (ADR-0019): **Portkey model provider** — model gateway can select & use real models via Portkey (OpenAI-compatible AI gateway; cloud or self-hosted OSS). `ab_gateway/providers.py` (`PortkeyModel`, lazy `portkey-ai` import, injectable client) + `model_routes.py` (task-profile → Portkey config/model/VK, env-overridable). `select_model()` by `AB_MODEL_PROVIDER` (default `stub`; live path unchanged). Portkey model must pass the eval gate to serve; un-gated → abstain, never called. Optional `models` dep group + mypy override. +6 infra-free tests (fake client, no network); OSS gateway image manually confirmed to boot & route. |
+| 2026-07-01 | Opus 4.8 | Slice 23 (ADR-0020): **grounding + bias eval gates — Audit 9 CLOSED** — per-dimension `thresholds` on `EvalSet` (grounding @1.0); `FairnessCase` metamorphic bias eval (decision invariant across protected-attribute groups); gate requires a bias eval for `art22_significant` profiles. New Art.22 `significant_customer_decision` suite; reference models Compliant/Hallucinating/Biased prove promote/grounding-block/bias-block. `make eval` shows all 3 Audit-9 criteria. +5 infra-free tests; ADR-0018/0019 tests still green. `architecture/16` Audit 9 → PASS (build-proven); CONDITIONAL 5→4. |
 
 ---
 

@@ -37,3 +37,6 @@ warehouse/
 src/ab_data/dbt_project/target/
 src/ab_data/dbt_project/logs/
 src/ab_data/dbt_project/.user.yml
+
+# API keys / local secrets (never commit)
+api-keys/

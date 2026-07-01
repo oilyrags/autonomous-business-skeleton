@@ -34,20 +34,36 @@ def _subject(model_version: str) -> SubjectRef:
     return SubjectRef(type="Model", id=model_version)
 
 
-def gate(report: EvalReport, min_score: float) -> PromotionDecision:
-    """Decide promotion from an eval report. Blocks on any critical failure OR a score
-    below ``min_score``. Builds the canonical domain event for whichever path taken."""
+def gate(
+    report: EvalReport,
+    min_score: float,
+    *,
+    thresholds: dict[str, float] | None = None,
+    art22_significant: bool = False,
+) -> PromotionDecision:
+    """Decide promotion from an eval report. Blocks on ANY of: a critical failure; overall
+    score below ``min_score``; a dimension below its threshold (the per-profile grounding
+    gate); or an Art.22 significant-decision profile with no bias/fairness eval. Builds the
+    canonical domain event for whichever path is taken."""
     now = datetime.now(tz=UTC)
-    crit = report.critical_failures
-    if crit:
-        reason = f"critical eval failure(s): {', '.join(crit)}"
-        promoted = False
-    elif report.score < min_score:
-        reason = f"score {report.score:.2f} < threshold {min_score:.2f}"
-        promoted = False
-    else:
-        reason = f"passed (score {report.score:.2f} >= {min_score:.2f})"
-        promoted = True
+    thresholds = thresholds or {}
+    reasons: list[str] = []
+
+    if report.critical_failures:
+        reasons.append(f"critical eval failure(s): {', '.join(report.critical_failures)}")
+    if report.score < min_score:
+        reasons.append(f"score {report.score:.2f} < threshold {min_score:.2f}")
+    for dim, thr in sorted(thresholds.items()):
+        ds = report.dimension_score(dim)
+        if ds is None:
+            reasons.append(f"no {dim} eval cases though a {dim} threshold is set")
+        elif ds < thr:
+            reasons.append(f"{dim} {ds:.2f} < threshold {thr:.2f}")
+    if art22_significant and "bias" not in report.dimensions():
+        reasons.append("Art.22 significant-decision profile requires a bias/fairness eval")
+
+    promoted = not reasons
+    reason = f"passed (score {report.score:.2f} >= {min_score:.2f})" if promoted else "; ".join(reasons)
 
     if promoted:
         event = ModelPromoted(
@@ -80,5 +96,10 @@ def gate(report: EvalReport, min_score: float) -> PromotionDecision:
 
 
 def evaluate_and_gate(model: Model, eval_set: EvalSet) -> PromotionDecision:
-    """Convenience: run the eval set then apply the gate at the set's threshold."""
-    return gate(evaluate(model, eval_set), eval_set.min_score)
+    """Convenience: run the eval set then apply the gate at the set's thresholds."""
+    return gate(
+        evaluate(model, eval_set),
+        eval_set.min_score,
+        thresholds=eval_set.thresholds,
+        art22_significant=eval_set.art22_significant,
+    )

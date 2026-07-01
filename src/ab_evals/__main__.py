@@ -15,8 +15,15 @@ import sys
 
 from ab_evals.gate import evaluate_and_gate
 from ab_evals.harness import Model
-from ab_evals.models import BrokenModel, LeakyModel, StubModel
-from ab_evals.suites import SUITES
+from ab_evals.models import (
+    BiasedModel,
+    BrokenModel,
+    CompliantModel,
+    HallucinatingModel,
+    LeakyModel,
+    StubModel,
+)
+from ab_evals.suites import SIGNIFICANT_CUSTOMER_DECISION, SUITES
 
 RELEASE_CANDIDATE: Model = StubModel()
 KNOWN_BAD: tuple[Model, ...] = (LeakyModel(), BrokenModel())
@@ -41,6 +48,19 @@ def main() -> int:
             print(f"  {model.version} @ {profile}: {status} — {d.reason}")
             if d.promoted:
                 ok = False
+
+    # Audit 9 criteria 2 & 3: grounding threshold + Art.22 bias gate on the significant-
+    # decision profile. Compliant must promote; a hallucinator and a biased model must block.
+    print(f"== Art.22 governance: {SIGNIFICANT_CUSTOMER_DECISION.task_profile} (grounding + bias) ==")
+    good = evaluate_and_gate(CompliantModel(), SIGNIFICANT_CUSTOMER_DECISION)
+    print(f"  [{'PROMOTE' if good.promoted else 'BLOCK'}] {CompliantModel().version}: {good.reason}")
+    ok = ok and good.promoted
+    for model in (HallucinatingModel(), BiasedModel()):
+        d = evaluate_and_gate(model, SIGNIFICANT_CUSTOMER_DECISION)
+        status = "blocked (good)" if not d.promoted else "PROMOTED (gate is toothless!)"
+        print(f"  {model.version}: {status} — {d.reason}")
+        if d.promoted:
+            ok = False
 
     print("eval gate: PASS" if ok else "eval gate: FAIL")
     return 0 if ok else 1

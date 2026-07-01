@@ -92,6 +92,11 @@ channels:
     messages:
       MvpDeployed:
         $ref: '#/components/messages/MvpDeployed'
+  saleClosed:
+    address: sales.opportunity.closed
+    messages:
+      SaleClosed:
+        $ref: '#/components/messages/SaleClosed'
   experimentConcluded:
     address: growth.experiment.concluded
     messages:
@@ -155,6 +160,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/mvpDeployed'
+  publishSaleClosed:
+    action: send
+    channel:
+      $ref: '#/channels/saleClosed'
   publishExperimentConcluded:
     action: send
     channel:
@@ -431,6 +440,25 @@ components:
               maker: { type: string }
               checker: { type: string, description: Distinct approver for maker-checker payments. }
               businessId: { type: string, description: Business the payment is scoped to, if any. }
+
+    SaleClosed:
+      name: SaleClosed
+      title: Sale closed
+      tags: [{ name: financial }]
+      description: >
+        A sales opportunity reached a terminal stage (won or lost). A won sale drives a customer
+        charge into the Revenue context. Published by Sales & Revenue Ops.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, opportunityId, stage, amountMinor, reason]
+            properties:
+              businessId: { type: string }
+              opportunityId: { type: string }
+              stage: { type: string, enum: [won, lost] }
+              amountMinor: { type: integer, description: Contract value, in integer minor units. }
+              reason: { type: string }
 
     MvpDeployed:
       name: MvpDeployed

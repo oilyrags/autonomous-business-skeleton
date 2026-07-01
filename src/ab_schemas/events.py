@@ -114,6 +114,17 @@ class LedgerEntryPosted(Envelope):
     business_id: str | None = None  # set when the payment is scoped to a business, else None
 
 
+class SaleClosed(Envelope):
+    """A sales opportunity reached a terminal stage (won or lost). The Sales & Revenue Ops context's
+    published event; a won sale drives a customer charge into the Revenue context."""
+
+    business_id: str
+    opportunity_id: str
+    stage: str  # won | lost
+    amount_minor: int
+    reason: str
+
+
 class MvpDeployed(Envelope):
     """A business's MVP/landing page was generated from its Blueprint and deployed to a URL. The
     MVP context's published event; an experiment can now point traffic at ``url``."""

@@ -67,6 +67,12 @@ gateway cost metering; `ab_growth`/`ab_playbook`).
   `collect_metrics` + `PostMetricsCollected` event. `make social` now scores each published post
   (linkedin 625 bps vs x 200 bps). 4 pure tests; contract green.
 
+- **Slice 66 (self-optimization):** the loop that makes the brand improve — a content variant is an
+  `ab_growth` experiment arm (engagements = conversions); `run_optimization` decides scale/pivot/kill
+  and `reweight`s the winning pillar in the `SocialProfile` (SCALE ×1.5 / KILL ×0.5), changing future
+  plans; `distil_winning_pillars` distils cross-brand leads the ab_playbook way. `make social` runs
+  the whole loop (Productivity 665bps beats Insights 200bps → SCALE → weight 0.5→0.75). 3 pure tests.
+
 ## Deferred (real adapters — need credentials/infra)
 
 Real Postiz/ComfyUI/content-LLM/analytics adapters; DSPy prompt compilation; video generation;

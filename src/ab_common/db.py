@@ -56,6 +56,28 @@ _DDL = [
         created_at       timestamptz NOT NULL DEFAULT now()
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS ledger_txns (
+        txn_id           text PRIMARY KEY,
+        idempotency_key  text NOT NULL UNIQUE,
+        maker            text NOT NULL,
+        checker          text,
+        magnitude        bigint NOT NULL,
+        currency         text NOT NULL,
+        memo             text NOT NULL DEFAULT '',
+        created_at       timestamptz NOT NULL DEFAULT now()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS ledger_entries (
+        seq        bigserial PRIMARY KEY,
+        txn_id     text NOT NULL REFERENCES ledger_txns(txn_id),
+        account    text NOT NULL,
+        amount     bigint NOT NULL,
+        currency   text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+    )
+    """,
 ]
 
 

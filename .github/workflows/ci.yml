@@ -24,6 +24,8 @@ jobs:
         run: uv run mypy
       - name: Model eval gate (blocks a model that fails its eval set)
         run: make eval
+      - name: Ledger invariants (balance, double-payment, maker-checker)
+        run: make ledger
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

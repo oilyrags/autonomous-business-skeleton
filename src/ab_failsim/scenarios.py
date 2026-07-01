@@ -16,6 +16,7 @@ from ab_evals.models import HallucinatingModel
 from ab_evals.suites import SIGNIFICANT_CUSTOMER_DECISION
 from ab_gateway import tools
 from ab_ledger.core import ApprovalRequired, InMemoryLedger, Posting, Transaction, requires_approval, validate
+from ab_ops.reliability import ErrorBudget, Incident, ReleaseManager, Severity, handle_incident
 
 
 @dataclass(frozen=True)
@@ -139,12 +140,30 @@ def dsar_erasure_with_legal_hold() -> ScenarioResult:
 
 
 def incident_rollback() -> ScenarioResult:
+    """Sev1 outage during a release that touched PII → auto-rollback to the last good version,
+    release freeze (change/error-budget), postmortem required, and a PII breach assessment."""
+    release = ReleaseManager(current="v1")
+    release.deploy("v2-bad")  # the release that triggers the incident
+    budget = ErrorBudget(slo_target=0.99, window=1000)  # 10 errors allowed
+    resp = handle_incident(
+        Incident("inc-1", Severity.SEV1, touched_pii=True, summary="outage during v2-bad release"),
+        release,
+        budget,
+        errors=250,  # well over budget
+    )
+    contained = (
+        resp.rolled_back
+        and release.current == "v1"  # actually reverted to the last good version
+        and resp.release_frozen
+        and not release.can_release(budget, errors=250)  # further deploys blocked
+        and resp.postmortem_required
+        and resp.breach_assessment_required
+    )
     return ScenarioResult(
         "incident_rollback",
         "03/10",
-        False,
-        "no deploy/rollback/error-budget component implemented yet (SRE phase)",
-        deferred=True,
+        contained,
+        "Sev1 auto-rolled back to last-good, releases frozen, postmortem + PII breach assessment required",
     )
 
 

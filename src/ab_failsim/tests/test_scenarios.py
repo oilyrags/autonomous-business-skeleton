@@ -14,21 +14,13 @@ def test_no_breaches_in_implemented_scenarios() -> None:
     assert breaches == []
 
 
-def test_implemented_scenarios_are_contained() -> None:
-    contained = {r.name for r in run_all() if not r.deferred and r.contained}
-    assert contained == {
-        "bad_model_output",
-        "hostile_prompt_injection",
-        "bad_payment",
-        "failed_dependency",
-        "stale_forecast",
-        "dsar_erasure_with_legal_hold",
-    }
+def test_all_seven_scenarios_are_contained() -> None:
+    results = run_all()
+    assert all(r.contained for r in results)  # every scenario's control contains its failure
 
 
-def test_only_incident_rollback_is_deferred() -> None:
-    deferred = {r.name for r in run_all() if r.deferred}
-    assert deferred == {"incident_rollback"}
+def test_no_scenarios_remain_deferred() -> None:
+    assert [r.name for r in run_all() if r.deferred] == []
 
 
 def test_cli_exits_zero_when_no_breaches() -> None:

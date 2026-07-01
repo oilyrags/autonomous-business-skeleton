@@ -78,3 +78,25 @@ def test_over_cap_payment_with_distinct_checker_is_valid() -> None:
 def test_under_cap_payment_needs_no_checker() -> None:
     small = [Posting("vendor", 50_000), Posting("cash", -50_000)]
     validate(_txn("s1", "ks1", small))  # magnitude below cap -> no approval needed
+
+
+def test_new_payee_under_cap_requires_a_checker() -> None:
+    # AM-11: a payment to a payee not on the approved list needs maker-checker, even under cap.
+    small = [Posting("payout", 50_000), Posting("cash", -50_000)]
+    t = Transaction("np1", "knp1", tuple(small), maker="cfo_agent", payee="brand_new_vendor")
+    with pytest.raises(ApprovalRequired):
+        validate(t, approved_payees=frozenset())
+
+
+def test_approved_payee_under_cap_needs_no_checker() -> None:
+    small = [Posting("payout", 50_000), Posting("cash", -50_000)]
+    t = Transaction("np2", "knp2", tuple(small), maker="cfo_agent", payee="known_vendor")
+    validate(t, approved_payees=frozenset({"known_vendor"}))  # on the list -> no approval
+
+
+def test_new_payee_with_distinct_checker_is_valid() -> None:
+    small = [Posting("payout", 50_000), Posting("cash", -50_000)]
+    t = Transaction(
+        "np3", "knp3", tuple(small), maker="cfo_agent", checker="controller_agent", payee="new_vendor"
+    )
+    validate(t, approved_payees=frozenset())  # approved by a distinct checker

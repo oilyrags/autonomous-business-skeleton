@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
 
 # Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
 # and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
@@ -94,6 +94,9 @@ ledger:      ## run the ledger invariants self-check (balance, double-payment, m
 
 compliance:  ## RoPA/lawful-basis gate: fail if personal data lacks an 08 record + basis
 	PYTHONPATH=src uv run python -m ab_compliance
+
+failsim:     ## run the failure-injection scenario suite (Audit 12); breach -> non-zero
+	PYTHONPATH=src uv run python -m ab_failsim
 
 data:        ## (batch) consume decisions from the bus, build the warehouse, print KPIs
 	PYTHONPATH=src uv run python -m ab_data

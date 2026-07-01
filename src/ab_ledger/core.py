@@ -13,6 +13,9 @@ from dataclasses import dataclass, field
 
 # Payments whose magnitude exceeds this (in minor units) require maker-checker approval.
 PAYMENT_CAP_MINOR: int = int(os.environ.get("AB_PAYMENT_CAP_MINOR", "100000"))  # e.g. 1000.00
+# Known/approved payees. A payment to a payee NOT on this list requires approval too
+# (AM-11: new payee → maker-checker), even under the cap. Env is a comma-separated list.
+APPROVED_PAYEES: frozenset[str] = frozenset(filter(None, os.environ.get("AB_APPROVED_PAYEES", "").split(",")))
 
 
 class LedgerError(Exception):
@@ -24,7 +27,7 @@ class UnbalancedTransaction(LedgerError):
 
 
 class ApprovalRequired(LedgerError):
-    """A payment above the cap has no checker."""
+    """A payment above the cap (or to a new payee) has no checker."""
 
 
 class SeparationOfDutiesViolation(LedgerError):
@@ -46,6 +49,7 @@ class Transaction:
     checker: str | None = None
     currency: str = "EUR"
     memo: str = ""
+    payee: str | None = None  # external counterparty for a payment (None = internal transfer)
 
     @property
     def magnitude(self) -> int:
@@ -57,20 +61,36 @@ def is_balanced(txn: Transaction) -> bool:
     return bool(txn.postings) and sum(p.amount for p in txn.postings) == 0
 
 
-def requires_approval(txn: Transaction, cap: int = PAYMENT_CAP_MINOR) -> bool:
-    return txn.magnitude > cap
+def approval_reason(
+    txn: Transaction, cap: int = PAYMENT_CAP_MINOR, approved_payees: frozenset[str] = APPROVED_PAYEES
+) -> str | None:
+    """Why this txn needs maker-checker, or None if it doesn't. Deterministic."""
+    if txn.magnitude > cap:
+        return f"payment {txn.magnitude} > cap {cap}"
+    if txn.payee is not None and txn.payee not in approved_payees:
+        return f"new payee '{txn.payee}' not on the approved list"
+    return None
 
 
-def validate(txn: Transaction, cap: int = PAYMENT_CAP_MINOR) -> None:
+def requires_approval(
+    txn: Transaction, cap: int = PAYMENT_CAP_MINOR, approved_payees: frozenset[str] = APPROVED_PAYEES
+) -> bool:
+    return approval_reason(txn, cap, approved_payees) is not None
+
+
+def validate(
+    txn: Transaction, cap: int = PAYMENT_CAP_MINOR, approved_payees: frozenset[str] = APPROVED_PAYEES
+) -> None:
     """Raise if the transaction breaks a ledger rule. Deterministic; no side effects."""
     if not txn.postings:
         raise UnbalancedTransaction(f"{txn.txn_id}: no postings")
     if not is_balanced(txn):
         total = sum(p.amount for p in txn.postings)
         raise UnbalancedTransaction(f"{txn.txn_id}: postings sum to {total}, not 0")
-    if requires_approval(txn, cap):
+    reason = approval_reason(txn, cap, approved_payees)
+    if reason is not None:
         if txn.checker is None:
-            raise ApprovalRequired(f"{txn.txn_id}: payment {txn.magnitude} > cap {cap} needs a checker")
+            raise ApprovalRequired(f"{txn.txn_id}: {reason} — needs a checker")
         if txn.checker == txn.maker:
             raise SeparationOfDutiesViolation(f"{txn.txn_id}: checker must differ from maker {txn.maker}")
 
@@ -82,9 +102,14 @@ class InMemoryLedger:
     _entries: list[Posting] = field(default_factory=list)
     _keys: set[str] = field(default_factory=set)
 
-    def post(self, txn: Transaction, cap: int = PAYMENT_CAP_MINOR) -> bool:
+    def post(
+        self,
+        txn: Transaction,
+        cap: int = PAYMENT_CAP_MINOR,
+        approved_payees: frozenset[str] = APPROVED_PAYEES,
+    ) -> bool:
         """Validate then apply. Returns True if applied, False if a duplicate (idempotent)."""
-        validate(txn, cap)  # raises on any rule violation BEFORE mutating state
+        validate(txn, cap, approved_payees)  # raises on any rule violation BEFORE mutating state
         if txn.idempotency_key in self._keys:
             return False  # double-payment prevented
         self._keys.add(txn.idempotency_key)

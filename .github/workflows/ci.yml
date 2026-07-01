@@ -28,6 +28,8 @@ jobs:
         run: make ledger
       - name: Compliance gate (personal data has a lawful basis + 08 RoPA record)
         run: make compliance
+      - name: Failure-injection suite (Audit 12 — controls contain injected failures)
+        run: make failsim
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

@@ -6,7 +6,7 @@ from ab_failsim.scenarios import run_all
 
 def test_all_scenarios_run() -> None:
     results = run_all()
-    assert len(results) == 7
+    assert len(results) == 11  # 7 original + 4 revenue/multi-business scenarios
 
 
 def test_no_breaches_in_implemented_scenarios() -> None:
@@ -14,7 +14,7 @@ def test_no_breaches_in_implemented_scenarios() -> None:
     assert breaches == []
 
 
-def test_all_seven_scenarios_are_contained() -> None:
+def test_all_scenarios_are_contained() -> None:
     results = run_all()
     assert all(r.contained for r in results)  # every scenario's control contains its failure
 

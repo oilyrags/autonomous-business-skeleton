@@ -167,6 +167,109 @@ def incident_rollback() -> ScenarioResult:
     )
 
 
+def losing_business_sunset() -> ScenarioResult:
+    """A business racks up conclusive experiment losses → the portfolio allocator sunsets it and
+    reclaims its capital (a runaway loser can't keep consuming capital)."""
+    from ab_portfolio.core import Action, BusinessPerformance, allocate
+
+    perfs = [BusinessPerformance(business_id="sinker", capital_minor=200_000, kill_count=3)]
+    rec = allocate(perfs, portfolio_budget_minor=500_000)[0]
+    contained = rec.action is Action.SUNSET and rec.capital_delta == -200_000
+    return ScenarioResult(
+        "losing_business_sunset",
+        "portfolio/ADR-0033",
+        contained,
+        "a conclusive loser is sunset and its 200k capital reclaimed",
+    )
+
+
+def over_budget_llm_call() -> ScenarioResult:
+    """An agent tries a model call that would breach the business's LLM budget → the gateway gate
+    refuses it before any inference (runaway inference spend can't happen)."""
+    from ab_gateway.llm_budget import LLMBudgetExceeded, gate_llm_spend
+
+    denied = _raises(
+        LLMBudgetExceeded,
+        lambda: gate_llm_spend("acme", cost_minor=60_000, spent_minor=50_000, budget_minor=100_000),
+    )
+    return ScenarioResult(
+        "over_budget_llm_call",
+        "gateway/ADR-0035",
+        denied,
+        "a call over the per-business LLM budget is refused before inference",
+    )
+
+
+def cross_business_isolation() -> ScenarioResult:
+    """Two businesses share the ledger → one's spend/revenue must never leak into the other's
+    attribution (multi-tenancy isolation holds under mixed activity)."""
+    from ab_revenue.core import Charge, record_charges
+    from ab_revenue.gateway import StubRevenueGateway
+
+    led = InMemoryLedger()
+    led.post(
+        Transaction(
+            "la",
+            "kla",
+            (Posting("a:llm_spend", 30_000), Posting("a:cash", -30_000)),
+            maker="gateway",
+            business_id="a",
+        )
+    )
+    record_charges(
+        StubRevenueGateway(
+            [Charge(business_id="b", amount_minor=80_000, customer_ref="c", external_ref="r")]
+        ),
+        led,
+    )
+    contained = (
+        led.business_spend("a").llm_spend_minor == 30_000
+        and led.business_spend("b").llm_spend_minor == 0
+        and led.business_revenue("b") == 80_000
+        and led.business_revenue("a") == 0
+    )
+    return ScenarioResult(
+        "cross_business_isolation",
+        "P1/P4 multi-tenancy",
+        contained,
+        "business A's LLM spend and business B's revenue stay attributed to their own business_id",
+    )
+
+
+def unprofitable_winner_held() -> ScenarioResult:
+    """A business wins its experiments but loses money → the econ→portfolio loop holds its capital
+    (capital never chases a money-loser, even a high-scoring one)."""
+    from ab_econ.core import UnitInputs, economics, unprofitable_ids
+    from ab_portfolio.core import Action, BusinessPerformance, allocate
+
+    losers = unprofitable_ids(
+        [
+            economics(
+                UnitInputs(
+                    business_id="hog",
+                    revenue_minor=100_000,
+                    cogs_minor=100_000,
+                    ad_spend_minor=100_000,
+                    llm_spend_minor=100_000,
+                    customers=10,
+                )
+            )
+        ]
+    )
+    rec = allocate(
+        [BusinessPerformance(business_id="hog", capital_minor=100_000, scale_count=4)],
+        portfolio_budget_minor=1_000_000,
+        unprofitable_business_ids=losers,
+    )[0]
+    contained = rec.action is Action.HOLD and "unprofitable" in rec.reason
+    return ScenarioResult(
+        "unprofitable_winner_held",
+        "econ+portfolio/ADR-0040",
+        contained,
+        "a money-losing experiment winner is held, not funded",
+    )
+
+
 SCENARIOS: tuple[Callable[[], ScenarioResult], ...] = (
     bad_model_output,
     hostile_prompt_injection,
@@ -175,6 +278,10 @@ SCENARIOS: tuple[Callable[[], ScenarioResult], ...] = (
     stale_forecast,
     dsar_erasure_with_legal_hold,
     incident_rollback,
+    losing_business_sunset,
+    over_budget_llm_call,
+    cross_business_isolation,
+    unprofitable_winner_held,
 )
 
 

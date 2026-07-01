@@ -30,6 +30,8 @@ jobs:
         run: make compliance
       - name: Failure-injection suite (Audit 12 — controls contain injected failures)
         run: make failsim
+      - name: Growth engine (experiment scale/pivot/kill decisions)
+        run: make growth
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

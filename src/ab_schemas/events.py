@@ -111,3 +111,16 @@ class LedgerEntryPosted(Envelope):
     payee: str
     maker: str
     checker: str | None = None
+
+
+class ExperimentConcluded(Envelope):
+    """The Experimentation & Growth context's decision on an experiment (scale/pivot/kill/
+    continue). ``business_id`` scopes it to one business in the portfolio (multi-tenancy)."""
+
+    business_id: str
+    experiment_id: str
+    action: str  # scale | pivot | kill | continue
+    reason: str
+    p_value: float
+    control_rate: float
+    variant_rate: float

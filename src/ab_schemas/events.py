@@ -76,3 +76,23 @@ class KillSwitchActivated(Envelope):
     reason: str
     activated_by: str
     activated_at: datetime
+
+
+class ModelPromoted(Envelope):
+    """A model version passed its eval gate and may serve the task profile (see 11 §5)."""
+
+    task_profile: str
+    model_version: str
+    eval_score: float
+
+    art22_significant: bool = False
+
+
+class ModelEvaluationFailed(Envelope):
+    """A model version failed its eval gate and is blocked from serving (see 11 §5)."""
+
+    task_profile: str
+    model_version: str
+    eval_score: float
+    failed_cases: list[str]
+    reason: str

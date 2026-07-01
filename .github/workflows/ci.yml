@@ -22,6 +22,8 @@ jobs:
           uv run ruff format --check src
       - name: Typecheck
         run: uv run mypy
+      - name: Model eval gate (blocks a model that fails its eval set)
+        run: make eval
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

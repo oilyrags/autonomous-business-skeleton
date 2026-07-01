@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-07-01 (Redpanda network isolation — slice 20)
+- **Last updated:** 2026-07-01 (model eval + promotion gate — slice 21)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
@@ -63,7 +63,7 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 - Audit 4 (compliance lawful-basis): CI check that personal data has an `08` entry.
 - Audit 6 (security): kill-switch drill within SLA; prompt-injection/exfiltration tests.
 - Audit 7 (finance): ledger-balance invariant; double-payment failure-injection; maker-checker.
-- Audit 9 (AI): eval gate blocks a bad model; grounding threshold; bias evals for Art.22.
+- Audit 9 (AI): ~~eval gate blocks a bad model~~ **DONE (slice 21, ADR-0018)**; grounding threshold; bias evals for Art.22 still pending.
 - Audit 12 (failure-injection): run the scenario suite, remediate findings.
 
 ---
@@ -107,13 +107,14 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 - [x] **Bus over mTLS** (slice 19, ADR-0016): gateway (produce) + audit/data/killswitch (consume) ↔ Redpanda over SPIFFE mTLS. Solved Kafka's **advertised-listener redirect** (a naive TCP tunnel breaks — the broker advertises its own address and the client redials direct) with a dedicated Redpanda `mtls` listener (`:29093`) advertised as the client proxy `kafka-mtls:29092`. `redpanda-proxy` (server, `redpanda` SVID uid 1008) + shared `kafka-mtls` (client, `kafka-client` SVID uid 1009); 4 bus clients set `AB_KAFKA=kafka-mtls:29092`. Shared client identity (per-client would need one advertised listener each — deferred). Verified live `make spire-bus-verify` (produce+consume over mTLS; no-SVID rejected); no regression on other hops; CI runs it. *(2026-07-01)*
 - [x] **Redpanda network isolation** (slice 20, ADR-0017): Redpanda moved to an isolated `busnet` (only redpanda + redpanda-proxy attach); app services have no direct route — `redpanda` doesn't even resolve for them. redpanda-proxy bridges default↔busnet as the sole path in. Host keeps `localhost:19092` (published; in-process tests unaffected). Verified live: bus produce/consume over mTLS still works, gateway CANNOT reach redpanda:9092 or :29093 directly, no regression. **Both datastores (Postgres + Redpanda) now isolated; every service hop is mTLS.** *(2026-07-01)*
 - [ ] Bus hardening remainder: per-client bus SVIDs (would need per-listener advertised addrs); drop host-published plaintext listeners in a prod profile; production SPIRE node attestation (join-token is dev-only).
+- [x] **Model eval + promotion gate** (slice 21, ADR-0018) — **Phase 3 (agent platform) STARTED**: `ab_evals` code-defined eval harness (per-profile `EvalSet` of deterministic cases w/ capability/safety dimensions + `critical` flag); `gate()` blocks on any critical failure or score<threshold, emitting canonical `ModelPromoted`/`ModelEvaluationFailed` (added to `ab_schemas`). `model_gateway` now serves a profile only if its model passed the gate (PromotionRegistry seeded at import); un-gated profile → deterministic fallback, never a silent guess. `make eval` = CI release gate (blocks a prompt-injection leaker + a low-capability model; self-checks the gate has teeth). +6 infra-free tests. **Closes the first of Audit 9's three build-time criteria** (`architecture/16`). *(2026-07-01)*
 - [ ] Production Keycloak/Vault modes.
 - [ ] Real model providers behind the gateway (vLLM / managed), replacing the stub.
 - [ ] Phase 2 continue — Cube/dbt-MetricFlow server; time-windowed/grain-aware KPIs; freshness SLAs; Iceberg + Trino + OpenMetadata; more KPIs & dbt tests.
 - [ ] Mirror `.scratch/phase-1-foundations/` issues to GitHub Issues once `gh` is installed.
 
 ### Run it
-`make up` (secure-by-default mesh), `make smoke` (drive agent→gateway→audit end-to-end), `make spire-bus-verify` (gateway/audit/data ↔ Redpanda over mTLS), `make data-verify` (data service serves canonical KPIs + freshness from live bus events), `make check` (lint+types+tests; needs `make up-infra`), `make down`. Service ports: gateway 18080, audit 18081, identity 18001, killswitch 18002, agent 18090, data 18085 (`/metrics`, `/metrics/{name}`, `/series/decisions_by_day`, `/freshness`, `/ready`, `/health`). Batch pipeline: `make data`.
+`make up` (secure-by-default mesh), `make smoke` (drive agent→gateway→audit end-to-end), `make spire-bus-verify` (gateway/audit/data ↔ Redpanda over mTLS), `make data-verify` (data service serves canonical KPIs + freshness from live bus events), `make eval` (model promotion gate — blocks a model that fails its eval set), `make check` (lint+types+tests; needs `make up-infra`), `make down`. Service ports: gateway 18080, audit 18081, identity 18001, killswitch 18002, agent 18090, data 18085 (`/metrics`, `/metrics/{name}`, `/series/decisions_by_day`, `/freshness`, `/ready`, `/health`). Batch pipeline: `make data`.
 
 **Local infra ports (avoid clashes):** Postgres **55432**, Redpanda **19092** (external), OPA **8181**. `make up` / `make check` / `make down`.
 - [ ] **Install `gh`** + `gh auth login` + create triage labels (`gh label create …`) to enable the GitHub Issues workflow.
@@ -213,6 +214,7 @@ autonomous-business/
 | 2026-07-01 | Opus 4.8 | Slice 18 (ADR-0015): **grain-aware KPIs + readiness** — dbt `gold_decisions_by_day` (UTC day→count) + `gold_by_day_reconciles_to_silver` check; canonical KPI `active_decision_days_total` (grain daily); `GET /series/decisions_by_day` (grain-aware breakdown); `GET /ready` (pure `readiness()`) 200 iff built + within SLA else 503, separate from `/health`. Scalar-per-KPI registry kept. +6 infra-free tests (20 data total). Verified live: 3 decisions/2 UTC days → `/ready` 503→200, `active_decision_days_total`=2, series `[{06-29:2},{06-30:1}]`, registry lists 3 KPIs. |
 | 2026-07-01 | Opus 4.8 | Slice 19 (ADR-0016): **bus over mTLS** — gateway/audit/data/killswitch ↔ Redpanda over SPIFFE mTLS. Beat Kafka's advertised-listener redirect with a dedicated Redpanda `mtls` listener (`:29093`) advertised as the client-proxy address `kafka-mtls:29092`. Added `redpanda-proxy` (server, `redpanda` SVID uid 1008) + shared `kafka-mtls` (client, `kafka-client` SVID uid 1009); overlay repoints `AB_KAFKA` for the 4 bus clients; bootstrap registers 1008/1009; PROXIES + CI updated. Shared client identity (per-client → per-listener, deferred). Verified live first try: produce+consume over mTLS, no-SVID rejected, other hops unaffected. |
 | 2026-07-01 | Opus 4.8 | Slice 20 (ADR-0017): **Redpanda network isolation** — moved Redpanda to an isolated `busnet` (only redpanda + redpanda-proxy attach); redpanda-proxy bridges default↔busnet as the sole path in. App services have no direct route (name doesn't resolve). Host keeps published `localhost:19092`. spire-bus-verify gains an isolation check. Verified live: bus mTLS still works, gateway cannot reach redpanda:9092/:29093 directly, host port OK, no regression. Both Postgres + Redpanda now isolated; every service hop mTLS. |
+| 2026-07-01 | Opus 4.8 | Slice 21 (ADR-0018): **model eval + promotion gate** (Phase 3 start) — `ab_evals` code-defined eval harness (per-profile `EvalSet`, capability + safety dims, `critical` flag); `gate()` blocks on critical failure or score<threshold → `ModelPromoted`/`ModelEvaluationFailed` (new `ab_schemas` events). `model_gateway` serves only eval-gated models (PromotionRegistry seeded at import; un-gated → deterministic fallback). `make eval` CI release gate blocks a prompt-injection leaker + a low-capability model and self-checks the gate has teeth. +6 infra-free tests; existing `test_model_gateway` still green. Closes 1st of Audit 9's 3 criteria (updated `architecture/16`). |
 
 ---
 

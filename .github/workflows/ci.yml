@@ -40,6 +40,8 @@ jobs:
         run: make econ
       - name: LLM budget enforcement (gateway denies over-budget calls)
         run: make llm-budget
+      - name: End-to-end loop (ledger spend -> econ verdict -> portfolio)
+        run: make loop
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

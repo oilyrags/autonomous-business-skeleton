@@ -8,6 +8,7 @@ is a follow-up).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -62,6 +63,13 @@ def economics(inputs: UnitInputs) -> UnitEconomics:
         llm_cost_ratio_bps=llm_ratio_bps,
         verdict=verdict,
     )
+
+
+def unprofitable_ids(economics: Iterable[UnitEconomics]) -> set[str]:
+    """The businesses whose verdict is UNPROFITABLE — the single definition of "who capital must not
+    chase". Feed straight into ``ab_portfolio.allocate(..., unprofitable_business_ids=...)`` so
+    allocation runs on real economics."""
+    return {e.business_id for e in economics if e.verdict is Verdict.UNPROFITABLE}
 
 
 def within_llm_budget(inputs: UnitInputs, *, llm_budget_minor: int) -> bool:

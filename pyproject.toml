@@ -24,6 +24,10 @@ package = false
 # duckdb + dbt-duckdb power the Phase 2 data pipeline. The `data` service image installs
 # just this group (Dockerfile.data); dev includes it so `uv run pytest`/CI has it too.
 data = ["duckdb>=1.1", "dbt-duckdb>=1.9"]
+# Optional: the Portkey AI-gateway SDK, used only when AB_MODEL_PROVIDER=portkey. Imported
+# lazily so the default stub path (and CI/tests, which inject a fake client) never need it.
+# Install with `uv sync --group models` to route real models through Portkey.
+models = ["portkey-ai>=1.0"]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", {include-group = "data"}]
 
 [tool.ruff]
@@ -43,7 +47,8 @@ files = ["src"]
 exclude = ["(^|/)tests/"]
 
 [[tool.mypy.overrides]]
-module = ["confluent_kafka.*"]
+# confluent_kafka ships no stubs; portkey_ai is an optional, lazily-imported dep.
+module = ["confluent_kafka.*", "portkey_ai.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

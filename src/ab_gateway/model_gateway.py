@@ -12,18 +12,27 @@ and must pass the same gate before the registry will promote them.
 
 from __future__ import annotations
 
+import os
+
 from ab_evals.gate import evaluate_and_gate
-from ab_evals.models import StubModel
 from ab_evals.registry import PromotionRegistry
 from ab_evals.suites import SUITES
+from ab_gateway import providers
 
 PROMOTIONS = PromotionRegistry()
-_SERVED = StubModel()
+# Provider is a deployment choice (AB_MODEL_PROVIDER): the offline stub by default, or a
+# real model via Portkey. Either way it must pass the eval gate below to be served.
+_SERVED = providers.select_model()
 
 
 def _seed_promotions() -> None:
     """At import, gate the served model against every suite; promote those it passes.
-    (A model that fails is left un-promoted, so the gateway falls back for that profile.)"""
+
+    Only auto-gate offline-evaluable models (the stub) so import never makes a network
+    call; a live provider (Portkey) is promoted via an explicit eval run, or by setting
+    AB_EVAL_ON_BOOT=1 to gate it at startup. Un-promoted => the gateway abstains (safe)."""
+    if not (providers.is_offline(_SERVED) or os.environ.get("AB_EVAL_ON_BOOT") == "1"):
+        return
     for profile, eval_set in SUITES.items():
         if evaluate_and_gate(_SERVED, eval_set).promoted:
             PROMOTIONS.promote(profile, _SERVED.version)

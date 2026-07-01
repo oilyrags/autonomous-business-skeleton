@@ -78,6 +78,16 @@ _DDL = [
         created_at timestamptz NOT NULL DEFAULT now()
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS businesses (
+        business_id   text PRIMARY KEY,
+        name          text NOT NULL,
+        status        text NOT NULL,
+        capital_minor bigint NOT NULL,
+        blueprint     jsonb NOT NULL,
+        created_at    timestamptz NOT NULL DEFAULT now()
+    )
+    """,
 ]
 
 

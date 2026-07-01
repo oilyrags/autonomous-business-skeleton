@@ -1,6 +1,6 @@
 # 02 — Persisted provisioning + capital allocation
 
-Status: todo
+Status: done (2026-07-01) — 3 integration tests vs up-infra
 PRD: docs/prd/0002-business-factory.md  ·  Triage: ready-for-agent  ·  Blocked by: 01
 
 ## What to build (Seam 2 — integration vs Postgres + ledger + bus)

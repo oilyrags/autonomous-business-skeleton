@@ -39,8 +39,20 @@ the recommendations' **P1 Multi-Business** and the **P0 `business_id`** seam. Tu
   `make factory` provisions two businesses (one `active` + spendable, one blocked-`draft` on
   compliance) and refuses an underfunded provision. lint + mypy strict clean.
 
+## Verified (Slice 2 — persisted `store`)
+
+- Integration vs `make up-infra` (3 tests): a funded, clean business is provisioned →
+  **`active`**, its capital is real ledger money (`<business_id>:cash == capital`,
+  `trial_balance()==0`), and exactly one `BusinessActivated` lands on the bus; a business under
+  an active kill-switch stays **`draft`** with capital allocated-but-locked (no event); an
+  underfunded provision writes nothing. Capital allocation is a maker-checker ledger txn
+  (portfolio agent + treasury control). `businesses` table stores the blueprint as jsonb so
+  `get()` rehydrates a full `Business`.
+- Fixed a latent pytest import collision (duplicate `test_core.py`/`test_store.py` basenames
+  across `tests/` dirs with no `__init__.py`) by using unique basenames.
+
 ## Deferred
 
-Slice 2 (persisted provisioning + real ledger allocation + event publish — the `store`). Then
-Half 2 (business-scoped `payments.transfer`), a portfolio capital cap, and `business_id`
-propagation through the existing contexts. See PRD 0002 "Out of Scope".
+Half 2 (business-scoped `payments.transfer` consulting `can_spend`, with a live readiness
+re-check), a portfolio capital cap (bounded treasury), and `business_id` propagation through the
+existing contexts. See PRD 0002 "Out of Scope".

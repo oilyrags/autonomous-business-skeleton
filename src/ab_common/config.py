@@ -13,6 +13,7 @@ class Settings:
     decision_topic: str = os.environ.get("AB_DECISION_TOPIC", "executive.decision.made")
     kill_topic: str = os.environ.get("AB_KILL_TOPIC", "security.killswitch.activated")
     ledger_topic: str = os.environ.get("AB_LEDGER_TOPIC", "finance.ledger.posted")
+    business_topic: str = os.environ.get("AB_BUSINESS_TOPIC", "executive.business.activated")
     # OIDC (Keycloak). Defaults target the host-published port for tests; in-container
     # services override these to reach Keycloak by service name (see docker-compose).
     oidc_token_url: str = os.environ.get(

@@ -66,6 +66,33 @@ def test_sunset_frees_capacity_to_fund_a_winner() -> None:
     assert net_deployed <= 300_000
 
 
+def test_unprofitable_winner_is_held_not_funded() -> None:
+    recs = allocate(
+        [_perf("w", capital=100_000, scale=3)],
+        portfolio_budget_minor=1_000_000,
+        unprofitable_business_ids={"w"},
+    )
+    assert recs[0].action is Action.HOLD
+    assert recs[0].capital_delta == 0
+    assert "unprofitable" in recs[0].reason
+
+
+def test_unprofitable_winner_frees_budget_for_a_profitable_one() -> None:
+    # Loss-maker has the higher score but is skipped; the profitable lower-score winner is funded.
+    recs = allocate(
+        [
+            _perf("hog", capital=100_000, scale=4),  # higher score, but unprofitable
+            _perf("earner", capital=100_000, scale=2),  # lower score, profitable
+        ],
+        portfolio_budget_minor=300_000,  # one increment of headroom
+        reinvest_increment_minor=100_000,
+        unprofitable_business_ids={"hog"},
+    )
+    by_id = {r.business_id: r for r in recs}
+    assert by_id["hog"].action is Action.HOLD
+    assert by_id["earner"].action is Action.INVEST_MORE
+
+
 def test_recommendations_become_business_scoped_events() -> None:
     from ab_portfolio.core import to_events
 

@@ -37,8 +37,18 @@ guard at/under/over. `make econ` (in CI) contrasts a healthy business (profit +6
 revenue, within budget) with an LLM-hog (loss −150k, LLM 83% of revenue, over budget). ruff +
 mypy strict clean.
 
+## Follow-up shipped — profit gates allocation (slice 43)
+
+`allocate` now takes an optional injected `unprofitable_business_ids: Container[str]` (default
+empty — backward compatible). A **winner that is unprofitable is not funded**: it is downgraded to
+HOLD ("winner but unprofitable — fix economics before funding") and does **not** consume budget, so
+its headroom stays available for a profitable lower-score winner. `ab_portfolio` stays decoupled
+(no `ab_econ` import — the caller passes the set); economics gates INVEST_MORE only. This ties the
+pipeline together: **growth → rollup → econ → portfolio**. 2 new pure tests (unprofitable winner
+held; its budget freed for a profitable one).
+
 ## Deferred
 
-Feeding `operating_profit` / verdict into the portfolio's capital score (so money, not just
-experiment counts, drives allocation); enforcing `within_llm_budget` at the Portkey gateway before
-a model call; sourcing the inputs from the ledger + a real ad/revenue rail.
+Enforcing `within_llm_budget` at the Portkey gateway before a model call; sourcing the economics
+inputs from the ledger + a real ad/revenue rail; a live consumer that maintains the unprofitable
+set from `ExperimentConcluded` + ledger balances.

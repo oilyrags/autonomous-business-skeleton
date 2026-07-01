@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import Container
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -59,11 +60,15 @@ def allocate(
     *,
     portfolio_budget_minor: int,
     reinvest_increment_minor: int = REINVEST_INCREMENT_MINOR,
+    unprofitable_business_ids: Container[str] = frozenset(),
 ) -> list[Recommendation]:
     """Recommend a capital action per business, respecting the portfolio budget cap.
 
     Losers are sunset (freeing capital), winners are funded greedily by score while the freed +
-    unused budget lasts; a winner that no longer fits is held. Output preserves input order.
+    unused budget lasts; a winner that no longer fits is held. A winner in
+    ``unprofitable_business_ids`` (an injected ``ab_econ`` signal) is never funded — capital does
+    not chase a money-loser, and its headroom stays available for a profitable winner. Output
+    preserves input order.
     """
     decisions: dict[str, Recommendation] = {}
     winners: list[BusinessPerformance] = []
@@ -91,7 +96,14 @@ def allocate(
     deployed = sum(p.capital_minor for p in performances)
     available = portfolio_budget_minor - (deployed - reclaimed)  # sunsets free capacity first
     for p in sorted(winners, key=lambda x: x.score, reverse=True):
-        if available >= reinvest_increment_minor:
+        if p.business_id in unprofitable_business_ids:
+            decisions[p.business_id] = Recommendation(
+                p.business_id,
+                Action.HOLD,
+                0,
+                f"winner (score {p.score}) but unprofitable — fix economics before funding",
+            )
+        elif available >= reinvest_increment_minor:
             decisions[p.business_id] = Recommendation(
                 p.business_id,
                 Action.INVEST_MORE,

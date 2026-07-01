@@ -44,6 +44,8 @@ jobs:
         run: make loop
       - name: Revenue rail (customer charges booked as income)
         run: make revenue
+      - name: Paid acquisition (ad spend + attribution)
+        run: make ads
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

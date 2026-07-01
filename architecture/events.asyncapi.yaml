@@ -82,6 +82,11 @@ channels:
     messages:
       RevenueReceived:
         $ref: '#/components/messages/RevenueReceived'
+  adSpendPlaced:
+    address: growth.ads.spend_placed
+    messages:
+      AdSpendPlaced:
+        $ref: '#/components/messages/AdSpendPlaced'
   experimentConcluded:
     address: growth.experiment.concluded
     messages:
@@ -137,6 +142,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/revenueReceived'
+  publishAdSpendPlaced:
+    action: send
+    channel:
+      $ref: '#/channels/adSpendPlaced'
   publishExperimentConcluded:
     action: send
     channel:
@@ -413,6 +422,25 @@ components:
               maker: { type: string }
               checker: { type: string, description: Distinct approver for maker-checker payments. }
               businessId: { type: string, description: Business the payment is scoped to, if any. }
+
+    AdSpendPlaced:
+      name: AdSpendPlaced
+      title: Ad spend placed
+      tags: [{ name: financial }]
+      description: >
+        A business-scoped ad campaign ran: spend placed with a platform + attributed conversions.
+        Closes the acquisition loop so CAC = spend / conversions on real numbers.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, channel, spendMinor, conversions, externalRef]
+            properties:
+              businessId: { type: string }
+              channel: { type: string }
+              spendMinor: { type: integer, description: Ad spend placed, in integer minor units. }
+              conversions: { type: integer, description: Attributed conversions (new customers). }
+              externalRef: { type: string }
 
     RevenueReceived:
       name: RevenueReceived

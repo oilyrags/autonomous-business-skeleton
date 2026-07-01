@@ -114,6 +114,18 @@ class LedgerEntryPosted(Envelope):
     business_id: str | None = None  # set when the payment is scoped to a business, else None
 
 
+class AdSpendPlaced(Envelope):
+    """A business-scoped ad campaign ran: spend was placed with an ad platform and attributed
+    conversions came back. Published by the Ads context; closes the acquisition loop (spend →
+    customers) so CAC is computed from real spend and real conversions."""
+
+    business_id: str
+    channel: str
+    spend_minor: int
+    conversions: int
+    external_ref: str
+
+
 class RevenueReceived(Envelope):
     """Money received from a customer, booked to the ledger. The Revenue context's published event;
     business-scoped so income is attributable per business in the portfolio."""

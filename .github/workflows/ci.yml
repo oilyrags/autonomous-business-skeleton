@@ -26,6 +26,8 @@ jobs:
         run: make eval
       - name: Ledger invariants (balance, double-payment, maker-checker)
         run: make ledger
+      - name: Compliance gate (personal data has a lawful basis + 08 RoPA record)
+        run: make compliance
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

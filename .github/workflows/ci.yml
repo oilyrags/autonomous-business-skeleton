@@ -69,12 +69,17 @@ jobs:
           curl -fsS http://localhost:18081/audit/verify \
             | python3 -c "import sys, json; assert json.load(sys.stdin)['intact'] is True"
           echo "smoke OK"
+      - name: SPIFFE mTLS — bootstrap SPIRE, start sidecars, verify live mTLS path
+        run: |
+          ./scripts/spire-bootstrap.sh
+          docker compose --profile spiffe up -d gateway-proxy agent-proxy
+          ./scripts/spire-mtls-verify.sh
       - name: Dump logs on failure
         if: failure()
-        run: docker compose logs --tail=100
+        run: docker compose --profile spiffe logs --tail=150
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: docker compose --profile spiffe down -v
 
   spiffe:
     runs-on: ubuntu-latest

@@ -93,6 +93,49 @@ services:
     depends_on:
       spire-server: {condition: service_healthy}
 
+  # mTLS sidecars (ghostunnel). gateway-proxy fronts the gateway and only accepts the
+  # agent SVID; agent-proxy fronts the agent and only trusts the gateway SVID. Each
+  # runs as the UID SPIRE attests to the matching workload identity.
+  gateway-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1002:1002"
+    # Share the SPIRE agent's PID namespace so its peertracker can resolve this
+    # workload's /proc for unix (uid) attestation across containers.
+    pid: "service:spire-agent"
+    command:
+      - server
+      - --listen=0.0.0.0:8443
+      - --target=gateway:8000
+      - --unsafe-target        # plaintext hop to the gateway is container-internal
+      - --allow-uri=spiffe://ab.internal/agent
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    ports: ["18443:8443"]
+    depends_on:
+      gateway: {condition: service_healthy}
+      spire-agent: {condition: service_started}
+
+  agent-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1001:1001"
+    pid: "service:spire-agent"  # see gateway-proxy
+    command:
+      - client
+      - --listen=0.0.0.0:8000
+      - --unsafe-listen        # plaintext listener reached over the container network
+      - --target=gateway-proxy:8443
+      - --verify-uri=spiffe://ab.internal/gateway
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    ports: ["18091:8000"]
+    depends_on:
+      gateway-proxy: {condition: service_started}
+      spire-agent: {condition: service_started}
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     command: ["start-dev", "--import-realm"]

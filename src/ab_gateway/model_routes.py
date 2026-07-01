@@ -31,14 +31,17 @@ class TaskRoute:
 def _route_from_env(profile: str, *, default_model: str, params: dict[str, object]) -> TaskRoute:
     """Build a route for a profile, letting env override config/model/virtual-key.
 
-    Keys: AB_PORTKEY_CONFIG_<PROFILE>, AB_PORTKEY_MODEL_<PROFILE>, AB_PORTKEY_VK_<PROFILE>.
+    Keys: AB_PORTKEY_CONFIG_<PROFILE>, AB_PORTKEY_MODEL_<PROFILE>, AB_PORTKEY_VK_<PROFILE>,
+    AB_PORTKEY_MAX_TOKENS. A non-trivial max_tokens default matters: *reasoning* models
+    (e.g. GLM-5.2) spend tokens "thinking" and return EMPTY content if the budget is too
+    small — verified live, so we default generously rather than surprise the caller.
     """
     key = profile.upper()
     return TaskRoute(
         config=os.environ.get(f"AB_PORTKEY_CONFIG_{key}"),
         model=os.environ.get(f"AB_PORTKEY_MODEL_{key}", default_model),
         virtual_key=os.environ.get(f"AB_PORTKEY_VK_{key}") or os.environ.get("AB_PORTKEY_VIRTUAL_KEY"),
-        params=params,
+        params={"max_tokens": int(os.environ.get("AB_PORTKEY_MAX_TOKENS", "1024")), **params},
     )
 
 

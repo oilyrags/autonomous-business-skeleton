@@ -84,7 +84,10 @@ class PortkeyModel:
             opts["config"] = route.config
         if route.virtual_key:
             opts["virtual_key"] = route.virtual_key
-        return Portkey(**opts)  # type: ignore[no-any-return]
+        # Typed local so mypy is consistent whether or not portkey-ai is installed
+        # (CI has no `models` group -> Portkey is Any; installed -> real type; both fine here).
+        client: ChatClient = Portkey(**opts)
+        return client
 
 
 def select_model() -> Model:

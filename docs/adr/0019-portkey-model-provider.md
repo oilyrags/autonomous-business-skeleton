@@ -51,9 +51,15 @@ default or the eval-gate governance.
   the critical safety case); and selecting Portkey **un-gated makes the gateway abstain
   without ever calling the model**. Existing gateway/eval tests still green; lint + mypy
   strict clean. Self-hosted OSS gateway image manually confirmed to boot and route.
+- **Live end-to-end (real key + model).** Confirmed against a real model: task profile →
+  Portkey Model Catalog slug `@…/z-ai/glm-5.2` → OpenRouter → GLM-5.2, then the **eval →
+  promotion gate against the live model → PROMOTED (score 1.00)**. Two findings baked in:
+  (1) provider credentials must live in the *saved* Portkey integration when a workspace sets
+  `block_inline_config` (BYOK-from-client is refused by policy); (2) *reasoning* models return
+  empty `content` if `max_tokens` is too small (budget spent "thinking") — routes now default
+  `max_tokens=1024` (env `AB_PORTKEY_MAX_TOKENS`).
 
 ## Deferred
 
-Live end-to-end model call (needs provider keys/cost — out of scope here); persisting
-promotions from an offline eval run (MLflow/model cards); guardrails/cost-budgets per route;
-Portkey observability/tracing wired to Langfuse/OTel.
+Persisting promotions from an offline eval run (MLflow/model cards); guardrails/cost-budgets
+per route; Portkey observability/tracing wired to Langfuse/OTel.

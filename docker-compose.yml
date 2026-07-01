@@ -41,7 +41,10 @@ services:
       POSTGRES_PASSWORD: ab
       POSTGRES_DB: ab
     # Host port 55432 to avoid clashing with a developer's local Postgres on 5432.
+    # On `pgnet` only — app services have no direct route; they reach it via mTLS through
+    # postgres-proxy. The published port stays for the host-run in-process test suite.
     ports: ["55432:5432"]
+    networks: [pgnet]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ab -d ab"]
       interval: 5s
@@ -191,10 +194,12 @@ services:
       - --allow-uri=spiffe://ab.internal/gateway
       - --allow-uri=spiffe://ab.internal/audit
       - --allow-uri=spiffe://ab.internal/killswitch
+      - --allow-uri=spiffe://ab.internal/identity
       - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
     volumes:
       - spire-sockets:/opt/spire/sockets
     ports: ["16432:6432"]
+    networks: [default, pgnet]   # bridges the app network to the isolated pgnet
     depends_on:
       postgres: {condition: service_healthy}
       spire-agent: {condition: service_started}
@@ -239,6 +244,24 @@ services:
     profiles: ["spiffe"]
     image: ghostunnel/ghostunnel:v1.8.2
     user: "1002:1002"          # gateway identity (outbound client)
+    pid: "service:spire-agent"
+    command:
+      - client
+      - --listen=0.0.0.0:5432
+      - --unsafe-listen
+      - --target=postgres-proxy:6432
+      - --verify-uri=spiffe://ab.internal/postgres
+      - --use-workload-api-addr=unix:///opt/spire/sockets/agent.sock
+    volumes:
+      - spire-sockets:/opt/spire/sockets
+    depends_on:
+      postgres-proxy: {condition: service_started}
+      spire-agent: {condition: service_started}
+
+  identity-pg-proxy:
+    profiles: ["spiffe"]
+    image: ghostunnel/ghostunnel:v1.8.2
+    user: "1007:1007"          # identity workload
     pid: "service:spire-agent"
     command:
       - client
@@ -344,6 +367,9 @@ services:
       gateway: {condition: service_healthy}
       keycloak: {condition: service_started}
       vault: {condition: service_healthy}
+
+networks:
+  pgnet:   # isolated DB network; only postgres + postgres-proxy attach
 
 volumes:
   spire-sockets:

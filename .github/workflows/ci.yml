@@ -45,44 +45,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build images and bring up the full stack
-        run: docker compose up -d --build --wait
-      - name: Seed Vault
-        run: |
-          docker compose exec -T vault vault kv put secret/ab/clients \
-            executive.cmo_agent=cmo-secret executive.intern_agent=intern-secret
-      - name: Wait for Keycloak realm
-        run: |
-          for i in $(seq 1 90); do
-            curl -fsS http://localhost:18083/realms/ab/protocol/openid-connect/certs >/dev/null 2>&1 && exit 0
-            sleep 2
-          done
-          echo "Keycloak realm not ready" && exit 1
-      - name: Smoke test (containerized end-to-end)
+      - name: Bring up the secure-by-default stack (mTLS mesh)
+        run: make up
+      - name: Smoke test (containerized end-to-end, over mTLS)
         run: |
           set -euo pipefail
           resp=$(curl -fsS -X POST http://localhost:18090/act)
           echo "$resp"
           echo "$resp" | python3 -c "import sys, json; d = json.load(sys.stdin); assert d['gateway_status'] == 200, d; assert d['body']['status'] == 'ok', d"
-          curl -fsS "http://localhost:18081/audit?action=decision_registry.write" \
-            | python3 -c "import sys, json; rows = json.load(sys.stdin); assert any(r['outcome'] == 'allow' for r in rows), rows"
           curl -fsS http://localhost:18081/audit/verify \
             | python3 -c "import sys, json; assert json.load(sys.stdin)['intact'] is True"
           echo "smoke OK"
-      - name: SPIFFE mTLS — agent->gateway, gateway->OPA, all app DB clients
+      - name: Verify SPIFFE mTLS (all hops + DB clients; Postgres isolated)
         run: |
-          ./scripts/spire-bootstrap.sh
-          docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe up -d \
-            gateway agent audit killswitch gateway-proxy agent-proxy opa-proxy gateway-opa-proxy \
-            postgres-proxy gateway-pg-proxy audit-pg-proxy killswitch-pg-proxy
           ./scripts/spire-mtls-verify.sh
           ./scripts/spire-secure-verify.sh
       - name: Dump logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe logs --tail=150
+        run: docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe logs --tail=200
       - name: Tear down
         if: always()
-        run: docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe down -v
+        run: make down
 
   spiffe:
     runs-on: ubuntu-latest

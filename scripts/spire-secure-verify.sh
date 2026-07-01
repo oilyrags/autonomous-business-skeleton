@@ -34,4 +34,12 @@ for hostport in "opa-proxy:19181" "postgres-proxy:16432"; do
   fi
 done
 
-echo "spire-secure-verify: PASS (agent->gateway, gateway->OPA, and all app DB clients over mTLS)"
+echo "=== negative: gateway has NO direct route to Postgres (network-isolated) ==="
+if docker compose exec -T gateway python -c \
+    "import socket; socket.create_connection(('postgres', 5432), 3)" >/dev/null 2>&1; then
+  echo "UNEXPECTED: gateway reached postgres:5432 directly"; exit 1
+else
+  echo "gateway cannot reach postgres directly (expected — only via mTLS proxy)"
+fi
+
+echo "spire-secure-verify: PASS (all hops + DB clients over mTLS; Postgres network-isolated)"

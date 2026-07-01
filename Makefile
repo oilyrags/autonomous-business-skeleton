@@ -1,4 +1,12 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure spire-secure-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify
+
+# Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
+# and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
+# infra on the host-published ports) — the containerized app path is always mTLS.
+COMPOSE_SECURE := docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe
+PROXIES := gateway-proxy agent-proxy opa-proxy gateway-opa-proxy postgres-proxy \
+	gateway-pg-proxy audit-pg-proxy killswitch-pg-proxy identity-pg-proxy
+APPSVCS := identity gateway killswitch audit agent
 
 sync:        ## install the uv workspace
 	uv sync
@@ -10,8 +18,11 @@ seed-vault:  ## write agent client secrets into Vault (KV v2)
 	docker compose exec -T vault vault kv put secret/ab/clients \
 		executive.cmo_agent=cmo-secret executive.intern_agent=intern-secret
 
-up:          ## build + bring up the full stack (infra + 5 services) + seed Vault
-	docker compose up -d --build --wait
+up:          ## bring up the full secure-by-default stack (infra -> SPIRE -> mTLS proxies -> services)
+	$(COMPOSE_SECURE) up -d --build --wait opa redpanda postgres keycloak vault
+	AB_DC="$(COMPOSE_SECURE)" ./scripts/spire-bootstrap.sh
+	$(COMPOSE_SECURE) up -d --no-recreate $(PROXIES)
+	$(COMPOSE_SECURE) up -d --no-recreate --build --wait $(APPSVCS)
 	$(MAKE) seed-vault
 
 up-infra:    ## bring up only infra (OPA, Redpanda, Postgres, Keycloak, Vault) + seed — for in-process tests
@@ -24,19 +35,13 @@ spire-up:    ## build SPIRE, bootstrap the trust domain, start the agent (SPIFFE
 spire-verify: ## verify SVID issuance + an agent<->gateway mTLS handshake
 	./scripts/spire-verify.sh
 
-spire-mtls:  ## bring up all ghostunnel mTLS sidecars (needs `make up` + `make spire-up`)
-	docker compose --profile spiffe up -d gateway-proxy agent-proxy opa-proxy gateway-opa-proxy \
-		postgres-proxy gateway-pg-proxy audit-pg-proxy killswitch-pg-proxy
+spire-mtls:  ## (re)bring up all ghostunnel mTLS sidecars
+	$(COMPOSE_SECURE) up -d $(PROXIES)
 
 spire-mtls-verify: ## verify a live request routes over SPIFFE mTLS to the gateway
 	./scripts/spire-mtls-verify.sh
 
-spire-secure: ## secured topology: repoint all app clients through sidecars + all proxies (needs `make up` + `make spire-up`)
-	docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe up -d \
-		gateway agent audit killswitch gateway-proxy agent-proxy opa-proxy gateway-opa-proxy \
-		postgres-proxy gateway-pg-proxy audit-pg-proxy killswitch-pg-proxy
-
-spire-secure-verify: ## verify agent->gateway AND gateway->OPA both run over mTLS
+spire-secure-verify: ## verify all hops + DB clients run over mTLS (and Postgres is isolated)
 	./scripts/spire-secure-verify.sh
 
 spire-rotation-drill: ## short-TTL SVIDs; prove rotation + zero-downtime mTLS (needs `make up`)
@@ -57,8 +62,8 @@ smoke: wait-idp  ## drive the containerized agent end-to-end and show the audit 
 	@echo "--- audit (allow records) ---"
 	@curl -fsS "http://localhost:18081/audit?action=decision_registry.write" | python3 -m json.tool
 
-down:        ## tear down the local stack
-	docker compose down -v
+down:        ## tear down the local stack (incl. mTLS mesh)
+	$(COMPOSE_SECURE) down -v
 
 logs:        ## tail the stack logs
 	docker compose logs -f

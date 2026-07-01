@@ -4,7 +4,10 @@
 # Idempotent enough for repeated runs (entries are recreated; a fresh token is issued).
 set -euo pipefail
 
-DC="docker compose"
+# Use the SAME compose invocation the caller uses (base vs base+overlay+profile), so
+# later `up` calls don't see config drift and recreate the agent (which would reuse its
+# consumed join token and crash).
+DC="${AB_DC:-docker compose}"
 SVR="$DC exec -T spire-server spire-server"
 SVID_TTL="${SVID_TTL:-3600}"   # X509-SVID TTL (seconds); short values drive the rotation drill
 
@@ -25,6 +28,8 @@ $SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.inte
   -selector unix:uid:1005 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
 $SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.internal/killswitch \
   -selector unix:uid:1006 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
+$SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.internal/identity \
+  -selector unix:uid:1007 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
 
 $DC exec -T spire-server sh -c "printf '%s' '$TOKEN' > /opt/spire/sockets/jointoken"
 $DC rm -sf spire-agent >/dev/null 2>&1 || true

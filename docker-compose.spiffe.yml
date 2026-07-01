@@ -2,6 +2,12 @@
 # mTLS sidecars instead of plaintext. Use with the base file:
 #   docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe up -d
 services:
+  identity:
+    environment:
+      AB_PG_DSN: postgresql://ab:ab@identity-pg-proxy:5432/ab?sslmode=disable
+    depends_on:
+      identity-pg-proxy:
+        condition: service_started
   agent:
     environment:
       AB_GATEWAY_URL: http://agent-proxy:8000

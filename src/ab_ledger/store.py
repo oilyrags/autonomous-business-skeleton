@@ -9,7 +9,7 @@ unbalanced or unapproved transaction never touches the ledger.
 from __future__ import annotations
 
 from ab_common import db
-from ab_ledger.core import PAYMENT_CAP_MINOR, Transaction, validate
+from ab_ledger.core import PAYMENT_CAP_MINOR, LedgerSpend, Transaction, validate
 
 
 def post(txn: Transaction, cap: int = PAYMENT_CAP_MINOR) -> bool:
@@ -57,3 +57,23 @@ def account_balance(account: str) -> int:
             "SELECT coalesce(sum(amount), 0) FROM ledger_entries WHERE account = %s", (account,)
         ).fetchone()
     return int(row[0]) if row else 0
+
+
+def business_spend(business_id: str) -> LedgerSpend:
+    """Derive a business's spend from the ledger: inference cost + money paid to outsiders.
+
+    Mirrors ``InMemoryLedger.business_spend`` — ``llm_spend`` is the ``{business_id}:llm_spend`` cost
+    account; ``external_spend`` sums positive ``external:*`` postings on this business's transactions
+    (the ``business_id`` header column added in ADR-0038)."""
+    with db.connect() as conn:
+        external = conn.execute(
+            "SELECT coalesce(sum(e.amount), 0) FROM ledger_entries e "
+            "JOIN ledger_txns t ON e.txn_id = t.txn_id "
+            "WHERE t.business_id = %s AND e.account LIKE 'external:%%' AND e.amount > 0",
+            (business_id,),
+        ).fetchone()
+    return LedgerSpend(
+        business_id=business_id,
+        llm_spend_minor=account_balance(f"{business_id}:llm_spend"),
+        external_spend_minor=int(external[0]) if external else 0,
+    )

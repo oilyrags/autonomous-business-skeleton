@@ -114,12 +114,22 @@ def validate(
             raise SeparationOfDutiesViolation(f"{txn.txn_id}: checker must differ from maker {txn.maker}")
 
 
+@dataclass(frozen=True)
+class LedgerSpend:
+    """Per-business spend the ledger can attribute: model inference vs money paid to outsiders."""
+
+    business_id: str
+    llm_spend_minor: int  # balance of the {business_id}:llm_spend cost account
+    external_spend_minor: int  # money paid to external:* payees on this business's transactions
+
+
 @dataclass
 class InMemoryLedger:
     """Append-only, idempotent ledger for tests + the demo. The Postgres store mirrors this."""
 
     _entries: list[Posting] = field(default_factory=list)
     _keys: set[str] = field(default_factory=set)
+    _txns: list[Transaction] = field(default_factory=list)
 
     def post(
         self,
@@ -133,6 +143,7 @@ class InMemoryLedger:
             return False  # double-payment prevented
         self._keys.add(txn.idempotency_key)
         self._entries.extend(txn.postings)
+        self._txns.append(txn)  # header carries business_id for per-business attribution
         return True
 
     def trial_balance(self) -> int:
@@ -141,3 +152,18 @@ class InMemoryLedger:
 
     def account_balance(self, account: str) -> int:
         return sum(p.amount for p in self._entries if p.account == account)
+
+    def business_spend(self, business_id: str) -> LedgerSpend:
+        """Derive a business's spend from the ledger: inference cost + money paid to outsiders."""
+        external = sum(
+            p.amount
+            for txn in self._txns
+            if txn.business_id == business_id
+            for p in txn.postings
+            if p.account.startswith(EXTERNAL_ACCOUNT_PREFIX) and p.amount > 0
+        )
+        return LedgerSpend(
+            business_id=business_id,
+            llm_spend_minor=self.account_balance(f"{business_id}:llm_spend"),
+            external_spend_minor=external,
+        )

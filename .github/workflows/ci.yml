@@ -36,6 +36,8 @@ jobs:
         run: make factory
       - name: Portfolio allocation (capital recycle recommendations)
         run: make portfolio
+      - name: Unit economics (profit/CAC/margin/LLM-cost per business)
+        run: make econ
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

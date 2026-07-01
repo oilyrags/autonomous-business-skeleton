@@ -31,3 +31,9 @@ target/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Phase 2 data platform runtime artifacts
+warehouse/
+src/ab_data/dbt_project/target/
+src/ab_data/dbt_project/logs/
+src/ab_data/dbt_project/.user.yml

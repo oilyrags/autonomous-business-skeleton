@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check data build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify
 
 # Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
 # and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
@@ -81,5 +81,8 @@ typecheck:   ## strict type check
 fmt:         ## auto-format
 	uv run ruff format src
 	uv run ruff check --fix src
+
+data:        ## consume decisions from the bus, build the warehouse, print canonical KPIs
+	PYTHONPATH=src uv run python -m ab_data
 
 check: lint typecheck test  ## everything CI runs

@@ -1,0 +1,9 @@
+name: ab_data
+version: "1.0.0"
+config-version: 2
+profile: ab_data
+model-paths: ["models"]
+
+models:
+  ab_data:
+    +materialized: table

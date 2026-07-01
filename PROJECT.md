@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-07-01 (secure-by-default; Postgres mTLS-only — slice 14)
+- **Last updated:** 2026-07-01 (Phase 2 data-fabric tracer — slice 15)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
@@ -200,6 +200,7 @@ autonomous-business/
 | 2026-07-01 | Opus 4.8 | Slice 11 (ADR-0008): gateway→OPA over mTLS (opa-proxy/gateway-opa-proxy + `opa` SVID, reusing the sidecar pattern). `/act` authorizes via mTLS'd OPA (200); no-SVID rejected. CI `docker` job verifies both hops. |
 | 2026-07-01 | Opus 4.8 | Slice 12 (ADR-0009): gateway→Postgres over mTLS (postgres-proxy/gateway-pg-proxy + `postgres` SVID; TCP tunnel of the PG wire; DSN sslmode=disable; init_db retry). Gateway startup + `/act` persist over mTLS; no-SVID rejected. CI verifies all three hops. |
 | 2026-07-01 | Opus 4.8 | Slice 13 (ADR-0010): all app DB clients over mTLS — audit (uid 1005) + killswitch (uid 1006) client sidecars + identities; postgres-proxy allows all three. Verified audit read + killswitch write + gateway persist over mTLS. CI verifies. |
+| 2026-07-01 | Opus 4.8 | Slice 15 (ADR-0012): **Phase 2 Core-data tracer** — `ab_data`: AgentDecisionMade → bronze Parquet → dbt-duckdb medallion → gold → code-defined metrics registry (one-definition-per-KPI) + inventory classification + quality. 5 infra-free tests; live `make data` (KPIs from real events). DuckDB+Parquet+dbt (Cube/Iceberg deferred). |
 | 2026-07-01 | Opus 4.8 | Slice 14 (ADR-0011): **secure-by-default** — `make up` runs the full mTLS mesh; Postgres network-isolated on `pgnet` (gateway can't reach it directly); identity DB sidecar (uid 1007). Solved SPIRE join-token single-use crash (--no-recreate + consistent invocation). Host tests green; CI uses `make up`/`make down`. |
 
 ---

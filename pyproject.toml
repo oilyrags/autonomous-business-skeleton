@@ -21,7 +21,9 @@ dependencies = [
 package = false
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+# duckdb + dbt-duckdb power the Phase 2 data pipeline + its tests. In the dev group so
+# `uv run pytest`/CI has them; excluded from service images (Dockerfile uses --no-dev).
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "duckdb>=1.1", "dbt-duckdb>=1.9"]
 
 [tool.ruff]
 line-length = 110

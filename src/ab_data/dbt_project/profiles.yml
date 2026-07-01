@@ -1,0 +1,8 @@
+ab_data:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # DuckDB warehouse file; set by the pipeline so tests can use a tmp path.
+      path: "{{ env_var('AB_WAREHOUSE_DB') }}"
+      threads: 1

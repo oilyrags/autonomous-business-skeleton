@@ -41,3 +41,4 @@ class SocialProfile(BaseModel):
     posting_rules: PostingRules = PostingRules()
     kpi_weights: dict[str, float] = Field(default_factory=dict)  # composite score weights
     review_mode: ReviewMode = ReviewMode.HUMAN_APPROVAL_FIRST_N
+    review_first_n: int = Field(default=5, ge=0)  # posts gated when review_mode = human_approval_first_n

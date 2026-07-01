@@ -73,6 +73,13 @@ gateway cost metering; `ab_growth`/`ab_playbook`).
   plans; `distil_winning_pillars` distils cross-brand leads the ab_playbook way. `make social` runs
   the whole loop (Productivity 665bps beats Insights 200bps → SCALE → weight 0.5→0.75). 3 pure tests.
 
+- **Slice 67 (governance depth):** `SocialProfile.review_first_n`; `authorize_publish` combines the
+  review mode (human_approval_first_n / always / never) with an `ab_org` authority check — a human is
+  required if the mode says so OR no agent holds the required level (L5 escalates to a person);
+  `governed_publish` holds a post until approved; `should_boost` is a deterministic amplify-only-
+  proven-within-budget policy whose boosts run through `ab_ads` (real ledger money). `make social`
+  now shows the full loop + governance. 7 pure tests. **ab_social module complete (PRD 0004).**
+
 ## Deferred (real adapters — need credentials/infra)
 
 Real Postiz/ComfyUI/content-LLM/analytics adapters; DSPy prompt compilation; video generation;

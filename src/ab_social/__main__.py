@@ -10,12 +10,21 @@ SocialProfile. Real content-LLM / Postiz / analytics adapters slot in behind the
 from __future__ import annotations
 
 from ab_growth.blueprint import Blueprint
+from ab_org.core import Charter, Org
 from ab_social.core import plan, publish_content, qa
 from ab_social.generator import StubContentGenerator
+from ab_social.governance import authorize_publish
 from ab_social.metrics import PostMetrics, StubMetricsSource, composite_score
 from ab_social.optimize import run_optimization
-from ab_social.profile import Pillar, PlatformConfig, PostingRules, SocialProfile
+from ab_social.profile import Pillar, PlatformConfig, PostingRules, ReviewMode, SocialProfile
 from ab_social.publisher import StubPublisher
+
+ORG = Org(
+    charters={
+        "social": Charter("social", "Social Agent", 2, "marketing", reports_to="cmo"),
+        "cmo": Charter("cmo", "CMO", 3, "marketing", reports_to=None),
+    }
+)
 
 KPI_WEIGHTS = {"engagement_rate": 0.4, "comments_quality": 0.3, "link_clicks": 0.2, "follower_growth": 0.1}
 PROFILE = SocialProfile(
@@ -89,6 +98,17 @@ def main() -> int:
     )
     print(f"\n  ab_growth decision: {decision.action.value.upper()} ({decision.reason})")
     print("  reweighted pillars:", {p.name: round(p.weight, 3) for p in optimized.pillars})
+
+    # Governance: the same publish, gated by review mode (human-approval-first-N) + authority.
+    gated = PROFILE.model_copy(update={"review_mode": ReviewMode.HUMAN_APPROVAL_FIRST_N, "review_first_n": 3})
+    print("\n  governance (review_mode human_approval_first_n=3):")
+    for idx in (1, 5):
+        auth = authorize_publish(
+            gated, posts_published_so_far=idx, initiator="social", org=ORG, required_level=2
+        )
+        print(f"    post #{idx}: requires_human={auth.requires_human} ({auth.reason})")
+    l5 = authorize_publish(gated, posts_published_so_far=100, initiator="social", org=ORG, required_level=5)
+    print(f"    an L5 action: requires_human={l5.requires_human} ({l5.reason})")
     return 0
 
 

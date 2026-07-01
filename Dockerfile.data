@@ -1,0 +1,16 @@
+# Data service image: main deps + the `data` group (duckdb + dbt-duckdb), no dev tools.
+# Kept separate from the 5 app services so their images stay lean.
+FROM python:3.12-slim
+
+COPY --from=ghcr.io/astral-sh/uv:0.7.6 /uv /bin/uv
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project --no-dev --group data
+
+COPY src ./src
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH=/app/src \
+    PYTHONUNBUFFERED=1
+
+CMD ["python", "-m", "uvicorn", "ab_data.app:app", "--host", "0.0.0.0", "--port", "8000"]

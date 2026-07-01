@@ -6,7 +6,7 @@
 COMPOSE_SECURE := docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe
 PROXIES := gateway-proxy agent-proxy opa-proxy gateway-opa-proxy postgres-proxy \
 	gateway-pg-proxy audit-pg-proxy killswitch-pg-proxy identity-pg-proxy
-APPSVCS := identity gateway killswitch audit agent
+APPSVCS := identity gateway killswitch audit agent data
 
 sync:        ## install the uv workspace
 	uv sync
@@ -82,7 +82,10 @@ fmt:         ## auto-format
 	uv run ruff format src
 	uv run ruff check --fix src
 
-data:        ## consume decisions from the bus, build the warehouse, print canonical KPIs
+data:        ## (batch) consume decisions from the bus, build the warehouse, print KPIs
 	PYTHONPATH=src uv run python -m ab_data
+
+data-verify: ## verify the running data service serves canonical KPIs from live events
+	./scripts/data-verify.sh
 
 check: lint typecheck test  ## everything CI runs

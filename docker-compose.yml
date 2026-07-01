@@ -368,8 +368,26 @@ services:
       keycloak: {condition: service_started}
       vault: {condition: service_healthy}
 
+  # data service (Phase 2): consumes AgentDecisionMade -> warehouse (DuckDB+dbt) and
+  # serves canonical KPIs. Uses its own image (Dockerfile.data) with duckdb + dbt.
+  data:
+    build:
+      context: .
+      dockerfile: Dockerfile.data
+    image: ab-data
+    environment:
+      AB_KAFKA: redpanda:9092
+      AB_WAREHOUSE_DIR: /warehouse
+    volumes:
+      - data-warehouse:/warehouse
+    ports: ["18085:8000"]
+    healthcheck: *svc_health
+    depends_on:
+      redpanda: {condition: service_healthy}
+
 networks:
   pgnet:   # isolated DB network; only postgres + postgres-proxy attach
 
 volumes:
   spire-sockets:
+  data-warehouse:

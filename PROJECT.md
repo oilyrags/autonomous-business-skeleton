@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-07-01 (Phase 2 data-fabric tracer — slice 15)
+- **Last updated:** 2026-07-01 (Phase 2 data service — slice 16)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git
@@ -100,14 +100,16 @@ Designing the **operating system of an AI-run business**: a reusable, domain-dri
 - [x] **gateway→Postgres over mTLS** (slice 12, ADR-0009): postgres-proxy/gateway-pg-proxy + `postgres` SVID; TCP tunnel of the Postgres wire; gateway startup + `/act` persist over mTLS; no-SVID rejected. `init_db` retry. CI verifies all three hops. *(2026-07-01)*
 - [x] **All app DB clients over mTLS** (slice 13, ADR-0010): `audit`/`killswitch` get client sidecars + SPIFFE identities; each service reads/writes Postgres over mTLS; no-SVID rejected. CI verifies. *(2026-07-01)*
 - [x] **Postgres mTLS-only / secure-by-default** (slice 14, ADR-0011): `make up` now runs the full mTLS mesh; Postgres network-isolated (gateway can't reach it directly); identity got a DB sidecar (uid 1007). Host tests green via published port. *(2026-07-01)*
-- [ ] Remaining SPIFFE work: gateway→Redpanda (Kafka advertised-listeners); production SPIRE node attestation (join-token is dev-only).
+- [x] **Phase 2 Core-data tracer** (slice 15, ADR-0012): `ab_data` — AgentDecisionMade → bronze Parquet → dbt-duckdb medallion → gold → code-defined metrics registry (one canonical definition per KPI) + inventory classification + quality. Batch CLI `make data`. 5 infra-free tests + live. *(2026-07-01)*
+- [x] **Data service — long-running semantic layer** (slice 16, ADR-0013): `ab_data.app` (FastAPI, own `Dockerfile.data` image, in `make up`) runs a background consumer that lands bronze + rebuilds the medallion, and serves canonical KPIs over HTTP (`GET /metrics`, `GET /metrics/{name}`; unknown→404). Bronze is now **append-only Parquet parts** so the service accumulates over time. New `data` dep group keeps app images lean. 4 more infra-free tests (`test_app.py`, 9 total); live `make data-verify` (drove decisions → consumed off bus → served KPIs); CI docker job runs data-verify. *(2026-07-01)*
+- [ ] Remaining SPIFFE work: gateway→Redpanda (Kafka advertised-listeners) and data-service→Redpanda (bus still plaintext); production SPIRE node attestation (join-token is dev-only).
 - [ ] Production Keycloak/Vault modes.
 - [ ] Real model providers behind the gateway (vLLM / managed), replacing the stub.
-- [ ] Phase 2 — Core data (canonical model, data inventory, semantic layer) per `architecture/15_implementation_roadmap.md`.
+- [ ] Phase 2 continue — Cube/dbt-MetricFlow server; time-windowed/grain-aware KPIs; freshness SLAs; Iceberg + Trino + OpenMetadata; more KPIs & dbt tests.
 - [ ] Mirror `.scratch/phase-1-foundations/` issues to GitHub Issues once `gh` is installed.
 
 ### Run it
-`make up` (secure-by-default mesh), `make smoke` (drive agent→gateway→audit end-to-end), `make check` (lint+types+tests; needs `make up-infra`), `make down`. Service ports: gateway 18080, audit 18081, identity 18001, killswitch 18002, agent 18090.
+`make up` (secure-by-default mesh), `make smoke` (drive agent→gateway→audit end-to-end), `make data-verify` (data service serves canonical KPIs from live bus events), `make check` (lint+types+tests; needs `make up-infra`), `make down`. Service ports: gateway 18080, audit 18081, identity 18001, killswitch 18002, agent 18090, data 18085. Batch pipeline: `make data`.
 
 **Local infra ports (avoid clashes):** Postgres **55432**, Redpanda **19092** (external), OPA **8181**. `make up` / `make check` / `make down`.
 - [ ] **Install `gh`** + `gh auth login` + create triage labels (`gh label create …`) to enable the GitHub Issues workflow.
@@ -202,6 +204,7 @@ autonomous-business/
 | 2026-07-01 | Opus 4.8 | Slice 13 (ADR-0010): all app DB clients over mTLS — audit (uid 1005) + killswitch (uid 1006) client sidecars + identities; postgres-proxy allows all three. Verified audit read + killswitch write + gateway persist over mTLS. CI verifies. |
 | 2026-07-01 | Opus 4.8 | Slice 15 (ADR-0012): **Phase 2 Core-data tracer** — `ab_data`: AgentDecisionMade → bronze Parquet → dbt-duckdb medallion → gold → code-defined metrics registry (one-definition-per-KPI) + inventory classification + quality. 5 infra-free tests; live `make data` (KPIs from real events). DuckDB+Parquet+dbt (Cube/Iceberg deferred). |
 | 2026-07-01 | Opus 4.8 | Slice 14 (ADR-0011): **secure-by-default** — `make up` runs the full mTLS mesh; Postgres network-isolated on `pgnet` (gateway can't reach it directly); identity DB sidecar (uid 1007). Solved SPIRE join-token single-use crash (--no-recreate + consistent invocation). Host tests green; CI uses `make up`/`make down`. |
+| 2026-07-01 | Opus 4.8 | Slice 16 (ADR-0013): **data service** — `ab_data.app` (FastAPI, `Dockerfile.data`, in `make up` on 18085) runs a background consumer (bus → append-only bronze parts → dbt rebuild) and serves canonical KPIs over HTTP (`/metrics`, `/metrics/{name}`, unknown→404). Bronze switched to append-only glob (silver still dedups by event_id). New `data` dep group keeps app images lean. +4 infra-free tests (9 total). Verified live: produced decisions 3→5, `decisions_recorded_total` 3→5 / `deciding_agents_total` 2→3. `make data-verify` + CI docker step. Fixed pre-existing `__main__.py` format drift. |
 
 ---
 

@@ -4,6 +4,7 @@ import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 import duckdb
 
@@ -29,9 +30,10 @@ def _row(event: AgentDecisionMade, ingested_at: datetime) -> tuple[object, ...]:
 
 
 def write_bronze(events: Sequence[AgentDecisionMade], warehouse_dir: Path = config.WAREHOUSE_DIR) -> Path:
-    """Write events to the bronze Parquet file (overwrite). Returns the path."""
-    path = config.bronze_path(warehouse_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """Append events as a new bronze Parquet part. Returns the part path."""
+    bronze = config.bronze_dir(warehouse_dir)
+    bronze.mkdir(parents=True, exist_ok=True)
+    path = bronze / f"part-{uuid4().hex}.parquet"
     ingested_at = datetime.now(tz=UTC)
     cols = ", ".join(f'"{name}" {typ}' for name, typ in BRONZE_COLUMNS)
     placeholders = ", ".join("?" for _ in BRONZE_COLUMNS)

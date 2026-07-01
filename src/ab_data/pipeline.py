@@ -27,7 +27,8 @@ class PipelineResult:
         return quality.all_passed(self.quality)
 
 
-def _dbt_build(warehouse_dir: Path) -> None:
+def build(warehouse_dir: Path = config.WAREHOUSE_DIR) -> None:
+    """Run the dbt medallion build against the current bronze parts."""
     env = {**os.environ, "AB_WAREHOUSE_DB": str(config.duckdb_path(warehouse_dir))}
     proc = subprocess.run(
         [
@@ -38,7 +39,7 @@ def _dbt_build(warehouse_dir: Path) -> None:
             "--profiles-dir",
             str(config.DBT_PROJECT_DIR),
             "--vars",
-            json.dumps({"bronze_path": str(config.bronze_path(warehouse_dir))}),
+            json.dumps({"bronze_glob": config.bronze_glob(warehouse_dir)}),
         ],
         env=env,
         capture_output=True,
@@ -56,7 +57,7 @@ def run(
     if events is not None:
         ingest.write_bronze(events, warehouse_dir)
 
-    _dbt_build(warehouse_dir)
+    build(warehouse_dir)
 
     con = duckdb.connect(str(config.duckdb_path(warehouse_dir)), read_only=True)
     try:

@@ -1,6 +1,6 @@
 """CLI: consume decisions from the event bus, build the warehouse, print canonical KPIs.
 
-    uv run python -m ab_data
+uv run python -m ab_data
 """
 
 from ab_data import ingest, pipeline

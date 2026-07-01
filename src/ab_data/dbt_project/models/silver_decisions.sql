@@ -10,5 +10,5 @@ select
     occurred_at,
     data_classification,
     ingested_at
-from read_parquet('{{ var("bronze_path") }}')
+from read_parquet('{{ var("bronze_glob") }}')
 qualify row_number() over (partition by event_id order by ingested_at desc) = 1

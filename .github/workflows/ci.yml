@@ -60,6 +60,8 @@ jobs:
         run: |
           ./scripts/spire-mtls-verify.sh
           ./scripts/spire-secure-verify.sh
+      - name: Verify data service (canonical KPIs from live bus events)
+        run: ./scripts/data-verify.sh
       - name: Dump logs on failure
         if: failure()
         run: docker compose -f docker-compose.yml -f docker-compose.spiffe.yml --profile spiffe logs --tail=200

@@ -17,6 +17,10 @@ from pydantic import ValidationError
 
 from ab_common import bus, db
 from ab_common.config import settings
+from ab_compliance.ropa import check as ropa_check
+from ab_factory import core as factory_core
+from ab_factory import store as factory_store
+from ab_killswitch import state as killswitch
 from ab_ledger import store as ledger_store
 from ab_ledger.core import LedgerError, Posting, Transaction
 from ab_schemas.events import DataClassification, LedgerEntryPosted, SubjectRef
@@ -69,6 +73,27 @@ def write_decision(principal: str, args: dict[str, Any]) -> str:
     return d.decision_id
 
 
+def _gate_business_spend(business_id: str, amount_minor: int) -> str:
+    """Factory gate for a business-scoped payment: the business must exist, be launch-ready
+    right now (live re-check), and afford the amount. Returns the account to debit (its cash)."""
+    business = factory_store.get(business_id)
+    if business is None:
+        raise ToolDenied(f"unknown business '{business_id}'", status=400)
+    cash = ledger_store.account_balance(f"{business_id}:cash")
+    ready = factory_core.readiness(
+        business,
+        cash_balance=cash,
+        kill_switch_clear=not killswitch.is_killed(business_id),
+        compliance_clear=not ropa_check(),
+    )
+    if not ready.ready:
+        raise ToolDenied(f"business '{business_id}' not launch-ready: {'; '.join(ready.reasons)}")
+    spend = factory_core.can_spend(business, amount_minor, cash_balance=cash)
+    if not spend.allowed:
+        raise ToolDenied(f"business '{business_id}': {spend.reason}")
+    return f"{business_id}:cash"
+
+
 def transfer_payment(principal: str, args: dict[str, Any]) -> str:
     """Move money to an external payee via the ledger. The ledger enforces double-entry,
     the cap, maker-checker, the payee allow-list, and idempotency — rule violations surface
@@ -77,10 +102,13 @@ def transfer_payment(principal: str, args: dict[str, Any]) -> str:
         p = PaymentTransfer.model_validate(args)
     except ValidationError as exc:
         raise ToolDenied(f"invalid payment args: {exc.error_count()} error(s)", status=400) from exc
+    from_account = p.from_account
+    if p.business_id is not None:  # business-scoped: gate through the Factory, spend its own cash
+        from_account = _gate_business_spend(p.business_id, p.amount_minor)
     txn = Transaction(
         txn_id=f"txn_{uuid4().hex[:12]}",
         idempotency_key=p.idempotency_key,
-        postings=(Posting(f"external:{p.payee}", p.amount_minor), Posting(p.from_account, -p.amount_minor)),
+        postings=(Posting(f"external:{p.payee}", p.amount_minor), Posting(from_account, -p.amount_minor)),
         maker=principal,
         checker=p.checker,
         currency=p.currency,

@@ -51,8 +51,21 @@ the recommendations' **P1 Multi-Business** and the **P0 `business_id`** seam. Tu
 - Fixed a latent pytest import collision (duplicate `test_core.py`/`test_store.py` basenames
   across `tests/` dirs with no `__init__.py`) by using unique basenames.
 
+## Verified (Half 2 — enforced business-scoped payments)
+
+- `PaymentTransfer` gains an optional `business_id`. When set, `transfer_payment` gates the
+  payment through the Factory *before* the ledger: fetch the business (unknown → `ToolDenied`
+  400), **live** `readiness()` (kill-switch / RoPA / funded re-checked at spend time), then
+  `can_spend()` (runway) — either failing → `ToolDenied` 403; the debit is scoped to
+  `<business_id>:cash`, and the ledger's cap / maker-checker / payee-allow-list / idempotency
+  still apply on top (two independent gates).
+- Integration vs `make up-infra` (5 tests): an active business's payment debits its own cash
+  (`external:<payee>` up, `<business_id>:cash` down, `trial_balance()==0`); a kill-switched
+  business is blocked "not launch-ready" (nothing spent); an over-runway payment is blocked
+  ("insufficient runway"); an unknown business is denied; **a payment without `business_id` is
+  unchanged** (backward compatible). Full gateway suite 40 green. lint + mypy strict clean.
+
 ## Deferred
 
-Half 2 (business-scoped `payments.transfer` consulting `can_spend`, with a live readiness
-re-check), a portfolio capital cap (bounded treasury), and `business_id` propagation through the
-existing contexts. See PRD 0002 "Out of Scope".
+A portfolio capital cap (bounded treasury), a portfolio analytics/allocation layer, and
+`business_id` propagation through the existing contexts' events/DB. See PRD 0002 "Out of Scope".

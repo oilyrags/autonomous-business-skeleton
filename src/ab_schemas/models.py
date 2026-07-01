@@ -56,3 +56,6 @@ class PaymentTransfer(BaseModel):
     checker: str | None = None
     currency: str = "EUR"
     memo: str = ""
+    # When set, the payment is scoped to a business: it spends the business's own
+    # `<business_id>:cash` and is gated by the Business Factory (launch-ready + runway).
+    business_id: str | None = None

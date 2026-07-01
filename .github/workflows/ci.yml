@@ -50,6 +50,8 @@ jobs:
         run: make mvp
       - name: Sales pipeline (qualify -> close -> revenue)
         run: make sales
+      - name: Observability (fleet overview + anomaly detection)
+        run: make obs
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

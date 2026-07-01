@@ -6,6 +6,7 @@ set -euo pipefail
 
 DC="docker compose"
 SVR="$DC exec -T spire-server spire-server"
+SVID_TTL="${SVID_TTL:-3600}"   # X509-SVID TTL (seconds); short values drive the rotation drill
 
 $DC up -d --build --wait spire-server
 
@@ -13,9 +14,9 @@ TOKEN=$($SVR token generate -spiffeID spiffe://ab.internal/node -ttl 3600 | sed 
 [ -n "$TOKEN" ] || { echo "failed to obtain join token" >&2; exit 1; }
 
 $SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.internal/gateway \
-  -selector unix:uid:1002 >/dev/null 2>&1 || true
+  -selector unix:uid:1002 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
 $SVR entry create -parentID spiffe://ab.internal/node -spiffeID spiffe://ab.internal/agent \
-  -selector unix:uid:1001 >/dev/null 2>&1 || true
+  -selector unix:uid:1001 -x509SVIDTTL "$SVID_TTL" >/dev/null 2>&1 || true
 
 $DC exec -T spire-server sh -c "printf '%s' '$TOKEN' > /opt/spire/sockets/jointoken"
 $DC rm -sf spire-agent >/dev/null 2>&1 || true

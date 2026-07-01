@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill
 
 sync:        ## install the uv workspace
 	uv sync
@@ -29,6 +29,12 @@ spire-mtls:  ## bring up the ghostunnel mTLS sidecars (needs `make up` + `make s
 
 spire-mtls-verify: ## verify a live request routes over SPIFFE mTLS to the gateway
 	./scripts/spire-mtls-verify.sh
+
+spire-rotation-drill: ## short-TTL SVIDs; prove rotation + zero-downtime mTLS (needs `make up`)
+	docker compose --profile spiffe rm -sf spire-server spire-agent gateway-proxy agent-proxy >/dev/null 2>&1 || true
+	SVID_TTL=60 ./scripts/spire-bootstrap.sh
+	docker compose --profile spiffe up -d gateway-proxy agent-proxy
+	./scripts/spire-rotation-drill.sh
 
 wait-idp:    ## block until the Keycloak realm is serving JWKS
 	@echo "waiting for keycloak realm 'ab'..."

@@ -386,6 +386,7 @@ components:
                 type: string
                 enum: [approved, rejected, pending, autonomous_within_policy]
               art22Significant: { type: boolean, default: false }
+              businessId: { type: string, description: Business the decision is scoped to, if any. }
 
     ApprovalRequired:
       name: ApprovalRequired

@@ -34,6 +34,7 @@ class DecisionWrite(BaseModel):
     title: str
     authority_level: int = Field(ge=0, le=5)
     approval_status: str = "autonomous_within_policy"
+    business_id: str | None = None  # scopes the decision to a business, when applicable
 
 
 class NotifyExternal(BaseModel):

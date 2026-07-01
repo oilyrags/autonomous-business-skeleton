@@ -65,9 +65,10 @@ def write_decision(principal: str, args: dict[str, Any]) -> str:
     d = DecisionWrite.model_validate(args)
     with db.connect() as conn:
         conn.execute(
-            "INSERT INTO decisions (decision_id, title, agent_id, authority_level, approval_status) "
-            "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (decision_id) DO NOTHING",
-            (d.decision_id, d.title, principal, d.authority_level, d.approval_status),
+            "INSERT INTO decisions "
+            "(decision_id, title, agent_id, authority_level, approval_status, business_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (decision_id) DO NOTHING",
+            (d.decision_id, d.title, principal, d.authority_level, d.approval_status, d.business_id),
         )
         conn.commit()
     return d.decision_id

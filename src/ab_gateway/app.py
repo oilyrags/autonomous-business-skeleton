@@ -147,6 +147,7 @@ def tool_call(
             agent_id=principal,
             authority_level=int(req.args.get("authority_level", 0)),
             approval_status=ApprovalStatus(req.args.get("approval_status", "autonomous_within_policy")),
+            business_id=req.args.get("business_id"),
         )
         bus.publish(settings.decision_topic, key=decision_id, value=event.model_dump_json(by_alias=True))
 

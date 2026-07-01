@@ -66,6 +66,7 @@ class AgentDecisionMade(Envelope):
     authority_level: int = Field(ge=0, le=5)
     approval_status: ApprovalStatus
     art22_significant: bool = False
+    business_id: str | None = None  # set when the decision is scoped to a business, else None
 
 
 class KillSwitchActivated(Envelope):

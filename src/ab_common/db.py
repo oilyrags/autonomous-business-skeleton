@@ -14,6 +14,7 @@ _DDL = [
         agent_id         text NOT NULL,
         authority_level  int  NOT NULL,
         approval_status  text NOT NULL,
+        business_id      text,
         created_at       timestamptz NOT NULL DEFAULT now()
     )
     """,

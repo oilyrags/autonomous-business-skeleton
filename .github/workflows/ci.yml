@@ -58,6 +58,8 @@ jobs:
         run: make memory
       - name: Hierarchical org (authority routing + escalation)
         run: make org
+      - name: Tool sandbox (capability policy + audit)
+        run: make sandbox
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

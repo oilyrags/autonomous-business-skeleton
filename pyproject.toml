@@ -28,7 +28,7 @@ data = ["duckdb>=1.1", "dbt-duckdb>=1.9"]
 # lazily so the default stub path (and CI/tests, which inject a fake client) never need it.
 # Install with `uv sync --group models` to route real models through Portkey.
 models = ["portkey-ai>=1.0"]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", {include-group = "data"}]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "hypothesis>=6", {include-group = "data"}]
 
 [tool.ruff]
 line-length = 110

@@ -111,6 +111,7 @@ class LedgerEntryPosted(Envelope):
     payee: str
     maker: str
     checker: str | None = None
+    business_id: str | None = None  # set when the payment is scoped to a business, else None
 
 
 class ExperimentConcluded(Envelope):

@@ -17,9 +17,20 @@ def post(txn: Transaction, cap: int = PAYMENT_CAP_MINOR) -> bool:
     validate(txn, cap)  # raises on a rule violation before any DB write
     with db.connect() as conn:
         cur = conn.execute(
-            "INSERT INTO ledger_txns (txn_id, idempotency_key, maker, checker, magnitude, currency, memo) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (idempotency_key) DO NOTHING RETURNING txn_id",
-            (txn.txn_id, txn.idempotency_key, txn.maker, txn.checker, txn.magnitude, txn.currency, txn.memo),
+            "INSERT INTO ledger_txns "
+            "(txn_id, idempotency_key, maker, checker, magnitude, currency, memo, business_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) "
+            "ON CONFLICT (idempotency_key) DO NOTHING RETURNING txn_id",
+            (
+                txn.txn_id,
+                txn.idempotency_key,
+                txn.maker,
+                txn.checker,
+                txn.magnitude,
+                txn.currency,
+                txn.memo,
+                txn.business_id,
+            ),
         )
         if cur.fetchone() is None:
             conn.rollback()  # duplicate idempotency_key — nothing posted

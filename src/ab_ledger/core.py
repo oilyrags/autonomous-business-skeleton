@@ -54,6 +54,7 @@ class Transaction:
     currency: str = "EUR"
     memo: str = ""
     payee: str | None = None  # explicit counterparty; usually derived from external: postings
+    business_id: str | None = None  # the business this movement is attributed to, if any
 
     @property
     def magnitude(self) -> int:

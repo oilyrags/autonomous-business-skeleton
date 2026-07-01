@@ -134,6 +134,7 @@ def complete_for_business(
             ),
             maker=principal,
             memo=f"llm:{task_profile}",
+            business_id=business_id,
         )
         try:
             ledger_store.post(txn)
@@ -162,6 +163,7 @@ def transfer_payment(principal: str, args: dict[str, Any]) -> str:
         currency=p.currency,
         memo=p.memo,
         payee=p.payee,
+        business_id=p.business_id,
     )
     try:
         applied = ledger_store.post(txn)  # False on idempotent replay — still "ok"
@@ -182,6 +184,7 @@ def transfer_payment(principal: str, args: dict[str, Any]) -> str:
             payee=p.payee,
             maker=principal,
             checker=p.checker,
+            business_id=p.business_id,
         )
         bus.publish(settings.ledger_topic, key=txn.txn_id, value=event.model_dump_json(by_alias=True))
     return txn.idempotency_key

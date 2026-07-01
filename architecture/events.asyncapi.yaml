@@ -403,6 +403,7 @@ components:
               payee: { type: string }
               maker: { type: string }
               checker: { type: string, description: Distinct approver for maker-checker payments. }
+              businessId: { type: string, description: Business the payment is scoped to, if any. }
 
     ExperimentConcluded:
       name: ExperimentConcluded

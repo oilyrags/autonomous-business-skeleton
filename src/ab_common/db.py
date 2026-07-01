@@ -65,6 +65,7 @@ _DDL = [
         magnitude        bigint NOT NULL,
         currency         text NOT NULL,
         memo             text NOT NULL DEFAULT '',
+        business_id      text,
         created_at       timestamptz NOT NULL DEFAULT now()
     )
     """,

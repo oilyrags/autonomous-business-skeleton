@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault
+.PHONY: sync up up-infra down logs test lint typecheck fmt check build smoke wait-idp seed-vault spire-up spire-verify
 
 sync:        ## install the uv workspace
 	uv sync
@@ -17,6 +17,12 @@ up:          ## build + bring up the full stack (infra + 5 services) + seed Vaul
 up-infra:    ## bring up only infra (OPA, Redpanda, Postgres, Keycloak, Vault) + seed — for in-process tests
 	docker compose up -d --wait opa redpanda postgres keycloak vault
 	$(MAKE) seed-vault
+
+spire-up:    ## build SPIRE, bootstrap the trust domain, start the agent (SPIFFE identity plane)
+	./scripts/spire-bootstrap.sh
+
+spire-verify: ## verify SVID issuance + an agent<->gateway mTLS handshake
+	./scripts/spire-verify.sh
 
 wait-idp:    ## block until the Keycloak realm is serving JWKS
 	@echo "waiting for keycloak realm 'ab'..."

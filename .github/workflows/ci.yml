@@ -75,3 +75,18 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
+
+  spiffe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap SPIRE (build + register + start agent)
+        run: ./scripts/spire-bootstrap.sh
+      - name: Verify SVID issuance + agent<->gateway mTLS handshake
+        run: ./scripts/spire-verify.sh
+      - name: Dump SPIRE logs on failure
+        if: failure()
+        run: docker compose --profile spiffe logs --tail=100
+      - name: Tear down
+        if: always()
+        run: docker compose --profile spiffe down -v

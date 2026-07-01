@@ -1,0 +1,21 @@
+# Shell-capable SPIRE image (server + agent binaries) so we can drive the
+# join-token bootstrap in docker-compose. Official images are distroless.
+FROM debian:12-slim
+
+ARG SPIRE_VERSION=1.15.1
+ARG TARGETARCH=arm64
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL \
+      "https://github.com/spiffe/spire/releases/download/v${SPIRE_VERSION}/spire-${SPIRE_VERSION}-linux-${TARGETARCH}-musl.tar.gz" \
+      -o /tmp/spire.tar.gz \
+    && tar -xzf /tmp/spire.tar.gz -C /opt \
+    && mv "/opt/spire-${SPIRE_VERSION}" /opt/spire \
+    && ln -s /opt/spire/bin/spire-server /usr/local/bin/spire-server \
+    && ln -s /opt/spire/bin/spire-agent /usr/local/bin/spire-agent \
+    && rm /tmp/spire.tar.gz
+
+RUN mkdir -p /opt/spire/data /opt/spire/sockets
+WORKDIR /opt/spire

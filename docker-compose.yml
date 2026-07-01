@@ -64,6 +64,35 @@ services:
       timeout: 3s
       retries: 10
 
+  spire-server:
+    profiles: ["spiffe"]
+    build: &spire_build
+      context: .
+      dockerfile: Dockerfile.spire
+    image: ab-spire
+    command: ["spire-server", "run", "-config", "/run/spire/server.conf"]
+    volumes:
+      - ./config/spire/server.conf:/run/spire/server.conf:ro
+      - spire-sockets:/opt/spire/sockets
+    healthcheck:
+      test: ["CMD", "spire-server", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Started by `make spire-up` after the join token is written (not in --wait).
+  spire-agent:
+    profiles: ["spiffe"]
+    build: *spire_build
+    image: ab-spire
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['exec spire-agent run -config /run/spire/agent.conf -joinToken "$(cat /opt/spire/sockets/jointoken)"']
+    volumes:
+      - ./config/spire/agent.conf:/run/spire/agent.conf:ro
+      - spire-sockets:/opt/spire/sockets
+    depends_on:
+      spire-server: {condition: service_healthy}
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     command: ["start-dev", "--import-realm"]
@@ -155,3 +184,6 @@ services:
       gateway: {condition: service_healthy}
       keycloak: {condition: service_started}
       vault: {condition: service_healthy}
+
+volumes:
+  spire-sockets:

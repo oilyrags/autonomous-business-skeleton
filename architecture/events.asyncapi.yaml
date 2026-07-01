@@ -72,6 +72,36 @@ channels:
     messages:
       KillSwitchActivated:
         $ref: '#/components/messages/KillSwitchActivated'
+  ledgerEntryPosted:
+    address: finance.ledger.entry_posted
+    messages:
+      LedgerEntryPosted:
+        $ref: '#/components/messages/LedgerEntryPosted'
+  experimentConcluded:
+    address: growth.experiment.concluded
+    messages:
+      ExperimentConcluded:
+        $ref: '#/components/messages/ExperimentConcluded'
+  businessActivated:
+    address: executive.business.activated
+    messages:
+      BusinessActivated:
+        $ref: '#/components/messages/BusinessActivated'
+  capitalReallocationRecommended:
+    address: executive.portfolio.reallocation_recommended
+    messages:
+      CapitalReallocationRecommended:
+        $ref: '#/components/messages/CapitalReallocationRecommended'
+  modelPromoted:
+    address: mlops.model.promoted
+    messages:
+      ModelPromoted:
+        $ref: '#/components/messages/ModelPromoted'
+  modelEvaluationFailed:
+    address: mlops.model.evaluation_failed
+    messages:
+      ModelEvaluationFailed:
+        $ref: '#/components/messages/ModelEvaluationFailed'
 
 operations:
   publishConsentGranted:
@@ -94,6 +124,30 @@ operations:
     action: send
     channel:
       $ref: '#/channels/killSwitchActivated'
+  publishLedgerEntryPosted:
+    action: send
+    channel:
+      $ref: '#/channels/ledgerEntryPosted'
+  publishExperimentConcluded:
+    action: send
+    channel:
+      $ref: '#/channels/experimentConcluded'
+  publishBusinessActivated:
+    action: send
+    channel:
+      $ref: '#/channels/businessActivated'
+  publishCapitalReallocationRecommended:
+    action: send
+    channel:
+      $ref: '#/channels/capitalReallocationRecommended'
+  publishModelPromoted:
+    action: send
+    channel:
+      $ref: '#/channels/modelPromoted'
+  publishModelEvaluationFailed:
+    action: send
+    channel:
+      $ref: '#/channels/modelEvaluationFailed'
 
 components:
   securitySchemes:
@@ -119,7 +173,7 @@ components:
           type: object
           required: [type, id]
           properties:
-            type: { type: string, enum: [Customer, Contact, Account, Invoice, Ticket, Decision, Vendor, Worker, System] }
+            type: { type: string, enum: [Customer, Contact, Account, Invoice, Ticket, Decision, Vendor, Worker, System, Business, Experiment, LedgerTransaction, Model] }
             id: { type: string }
 
     PersonalDataGovernance:
@@ -328,3 +382,109 @@ components:
               reason: { type: string }
               activatedBy: { type: string }
               activatedAt: { type: string, format: date-time }
+
+    LedgerEntryPosted:
+      name: LedgerEntryPosted
+      title: Ledger entry posted
+      tags: [{ name: financial }]
+      description: >
+        Emitted once per applied ledger transaction (never on an idempotent replay). Consumers
+        integrate downstream (analytics, reconciliation) without reading the ledger's private store.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [txnId, idempotencyKey, amountMinor, currency, payee, maker]
+            properties:
+              txnId: { type: string }
+              idempotencyKey: { type: string }
+              amountMinor: { type: integer, description: Money moved, in integer minor units. }
+              currency: { type: string, default: EUR }
+              payee: { type: string }
+              maker: { type: string }
+              checker: { type: string, description: Distinct approver for maker-checker payments. }
+
+    ExperimentConcluded:
+      name: ExperimentConcluded
+      title: Experiment concluded
+      description: >
+        The Experimentation & Growth context's decision on an experiment. `businessId` scopes it to
+        one business in the portfolio (multi-tenancy).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, experimentId, action, reason, pValue, controlRate, variantRate]
+            properties:
+              businessId: { type: string }
+              experimentId: { type: string }
+              action: { type: string, enum: [scale, pivot, kill, continue] }
+              reason: { type: string }
+              pValue: { type: number }
+              controlRate: { type: number }
+              variantRate: { type: number }
+
+    BusinessActivated:
+      name: BusinessActivated
+      title: Business activated
+      description: >
+        A new business passed the readiness gate and went live, funded with capital. The Business
+        Factory's published event; a portfolio context integrates on `businessId`.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, name, capitalMinor]
+            properties:
+              businessId: { type: string }
+              name: { type: string }
+              capitalMinor: { type: integer, description: Capital funded, in integer minor units. }
+
+    CapitalReallocationRecommended:
+      name: CapitalReallocationRecommended
+      title: Capital reallocation recommended
+      tags: [{ name: financial }]
+      description: >
+        The Portfolio context recommends a capital action for a business. Advisory only — capital
+        moves are human-in-the-loop (no autonomous execution for money).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, action, capitalDelta, reason]
+            properties:
+              businessId: { type: string }
+              action: { type: string, enum: [invest_more, hold, starve, sunset] }
+              capitalDelta: { type: integer, description: Recommended change to deployed capital (minor units). }
+              reason: { type: string }
+
+    ModelPromoted:
+      name: ModelPromoted
+      title: Model promoted
+      description: A model version passed its eval gate and may serve the task profile.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [taskProfile, modelVersion, evalScore]
+            properties:
+              taskProfile: { type: string }
+              modelVersion: { type: string }
+              evalScore: { type: number }
+              art22Significant: { type: boolean, default: false }
+
+    ModelEvaluationFailed:
+      name: ModelEvaluationFailed
+      title: Model evaluation failed
+      description: A model version failed its eval gate and is blocked from serving.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [taskProfile, modelVersion, evalScore, failedCases, reason]
+            properties:
+              taskProfile: { type: string }
+              modelVersion: { type: string }
+              evalScore: { type: number }
+              failedCases: { type: array, items: { type: string } }
+              reason: { type: string }

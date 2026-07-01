@@ -34,6 +34,8 @@ jobs:
         run: make growth
       - name: Business factory (provision + readiness gate)
         run: make factory
+      - name: Portfolio allocation (capital recycle recommendations)
+        run: make portfolio
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

@@ -133,3 +133,13 @@ class BusinessActivated(Envelope):
     business_id: str
     name: str
     capital_minor: int
+
+
+class CapitalReallocationRecommended(Envelope):
+    """The Portfolio context recommends a capital action for a business (invest_more / hold /
+    starve / sunset). Advisory only — capital moves are human-in-the-loop (architecture/06)."""
+
+    business_id: str
+    action: str  # invest_more | hold | starve | sunset
+    capital_delta: int  # recommended change to deployed capital (minor units)
+    reason: str

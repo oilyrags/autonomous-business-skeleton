@@ -70,3 +70,10 @@ Full detail: PRD 0005; issues in `.scratch/monitoring/`.
   (OPERATING_LOSS → CRITICAL, LLM_COST_HIGH → WARNING; worst wins), tagged by `business_id`;
   `dsar_backlog_check` (age → warn/crit vs the statutory deadline). 5 tests. `make monitor` now runs
   the full 10-check suite (platform + invariants + per-business).
+
+- **M4 (compose + real submit adapter):** `Icinga2RestExporter` (behind the `NagiosExporter` port) —
+  a pure `payload()` builder (Icinga2 `process-check-result` shape; per-business checks target
+  `host.name==business_id`) + an injectable httpx client, so payloads are CI-tested and only the
+  network submit skips. `docker-compose.monitoring.yml` (Icinga2 + Icinga Web, secrets via env);
+  `python -m ab_monitor.submit` / `make monitor-submit`; an integration test that skips fast without
+  the profile. `docs/monitoring-stack.md`. 4 unit tests + 1 (skipping) integration test.

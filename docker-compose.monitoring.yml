@@ -1,0 +1,45 @@
+# Monitoring profile (deferred infra, ADR-0055 / PRD 0005 M4). Brings up Icinga2 (REST API +
+# scheduler) and Icinga Web 2 (operator UI). The app submits check results to the Icinga2 REST API
+# (`process-check-result`) via ab_monitor.icinga2.Icinga2RestExporter — see `python -m ab_monitor.submit`.
+#
+#   ICINGA2_API_PASSWORD=... ICINGAWEB2_ADMIN_PASSWORD=... \
+#     docker compose -f docker-compose.monitoring.yml up -d
+#
+# Secrets come from the environment (never committed). The classic-Nagios alternative submits the
+# same vendor-neutral plugin results via NSCA behind the same NagiosExporter port.
+
+services:
+  icinga2:
+    image: icinga/icinga2:latest
+    container_name: ab-icinga2
+    environment:
+      - ICINGA2_API_USER=${ICINGA2_API_USER:-api}
+      - ICINGA2_API_PASSWORD=${ICINGA2_API_PASSWORD:?set ICINGA2_API_PASSWORD}
+    ports:
+      - "5665:5665"   # REST API — target of process-check-result submissions
+    volumes:
+      - icinga2-data:/data
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  icingaweb2:
+    image: icinga/icingaweb2:latest
+    container_name: ab-icingaweb2
+    environment:
+      - ICINGAWEB2_ADMIN_USER=${ICINGAWEB2_ADMIN_USER:-admin}
+      - ICINGAWEB2_ADMIN_PASSWORD=${ICINGAWEB2_ADMIN_PASSWORD:?set ICINGAWEB2_ADMIN_PASSWORD}
+    ports:
+      - "8080:8080"   # operator UI
+    depends_on:
+      - icinga2
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+volumes:
+  icinga2-data:
+
+networks:
+  monitoring:
+    driver: bridge

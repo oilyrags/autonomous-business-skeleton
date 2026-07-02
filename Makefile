@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth factory portfolio econ llm-budget loop revenue ads mvp sales obs playbook memory org sandbox social monitor demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth factory portfolio econ llm-budget loop revenue ads mvp sales obs playbook memory org sandbox social monitor monitor-submit demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
 
 # Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
 # and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
@@ -145,6 +145,9 @@ social:      ## social content demo — plan -> generate -> QA -> publish (stub 
 
 monitor:     ## monitoring demo — deterministic checks rendered as Nagios plugin results
 	PYTHONPATH=src uv run python -m ab_monitor
+
+monitor-submit: ## submit the check suite to a live Icinga2 (needs docker-compose.monitoring.yml + ICINGA2_API_PASSWORD)
+	PYTHONPATH=src uv run python -m ab_monitor.submit
 
 factory:     ## business factory demo — provision + readiness-gate businesses (per business_id)
 	PYTHONPATH=src uv run python -m ab_factory

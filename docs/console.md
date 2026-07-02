@@ -10,6 +10,15 @@ make console          # CI render smoke — proves the page + design system rend
 make console-serve    # run it live at http://localhost:8600
 ```
 
+**Every route requires an authenticated operator** (VULN-001 / ADR-0057). In production a trusted
+reverse proxy authenticates the human (OIDC) and forwards signed identity headers
+(`X-Operator-Id` / `X-Operator-Role` / `X-Operator-Sig = HMAC-SHA256(AB_OPERATOR_AUTH_SECRET,
+"id:role")`); the console verifies them and default-denies (401) otherwise. Mutations (halt,
+approve/reject) additionally need a mutating role (`operator`/`security`/`admin`) and are recorded
+against the real operator id. `/metrics` is the one exception (Prometheus scrape; restrict it at the
+network layer). To reach it locally without the proxy, send the three headers — get a signature from
+`python -c "from ab_console.auth import sign_identity; print(sign_identity('you','operator'))"`.
+
 The MVP ships with deterministic sample providers so every screen renders with no infra. A live
 deployment replaces the providers in `ab_console/app.py` (each is a FastAPI dependency) with real
 reads: ledger → `ab_obs` snapshots, `ab_monitor` checks, the kill-switch table, `ab_growth`

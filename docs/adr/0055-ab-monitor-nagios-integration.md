@@ -63,3 +63,10 @@ Full detail: PRD 0005; issues in `.scratch/monitoring/`.
   (reuses `ab_ops.ErrorBudget`); `NagiosExporter` port + `StubNagiosExporter` + `render_all`.
   `make monitor` emits the suite as Nagios plugin lines. `src/ab_monitor/CONTEXT.md` created + linked
   from `CONTEXT-MAP.md`. 7 pure tests.
+
+- **M2 (invariants):** `ledger_balance_check` (`trial_balance()!=0` → CRITICAL), `audit_integrity_check`
+  (broken hash chain → CRITICAL), `kill_switch_check` (active → CRITICAL with scope+reason). 4 tests.
+- **M3 (per-business):** `business_checks(snapshots, anomalies)` maps `ab_obs` anomalies to statuses
+  (OPERATING_LOSS → CRITICAL, LLM_COST_HIGH → WARNING; worst wins), tagged by `business_id`;
+  `dsar_backlog_check` (age → warn/crit vs the statutory deadline). 5 tests. `make monitor` now runs
+  the full 10-check suite (platform + invariants + per-business).

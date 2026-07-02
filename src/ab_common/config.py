@@ -30,9 +30,10 @@ class Settings:
     # services override AB_VAULT_ADDR to reach Vault by service name.
     vault_addr: str = os.environ.get("AB_VAULT_ADDR", "http://localhost:18200")
     vault_token: str = os.environ.get("AB_VAULT_TOKEN", "root")
-    # Shared secret the console uses to verify the reverse proxy's signed operator-identity
-    # headers (VULN-001). Dev default here; VULN-005 makes it fail-closed outside dev.
-    console_auth_secret: str = os.environ.get("AB_CONSOLE_AUTH_SECRET", "dev-insecure-console-secret")
+    # Shared secret the intervention services (console, kill-switch) use to verify the reverse
+    # proxy's signed operator-identity headers (VULN-001/004). Dev default here; VULN-005 makes it
+    # fail-closed outside dev.
+    operator_auth_secret: str = os.environ.get("AB_OPERATOR_AUTH_SECRET", "dev-insecure-operator-secret")
 
 
 settings = Settings()

@@ -16,18 +16,14 @@ adds a second, independent barrier (reject a cross-origin `Origin`) as defense i
 
 from __future__ import annotations
 
-import hmac
 from dataclasses import dataclass
-from hashlib import sha256
 from typing import Annotated
 
 from fastapi import Header, HTTPException, Request
 
+from ab_common import operator_identity
 from ab_common.config import settings
-
-# Roles permitted to perform a state-changing action (halt, approve/reject). Read access only
-# needs an authenticated operator; mutation needs one of these (least privilege).
-MUTATING_ROLES = frozenset({"operator", "security", "admin"})
+from ab_common.operator_identity import MUTATING_ROLES
 
 
 @dataclass(frozen=True)
@@ -44,8 +40,7 @@ class Operator:
 
 def sign_identity(operator_id: str, role: str) -> str:
     """The signature the proxy must attach (exposed so tests + the proxy agree on one definition)."""
-    msg = f"{operator_id}:{role}".encode()
-    return hmac.new(settings.console_auth_secret.encode(), msg, sha256).hexdigest()
+    return operator_identity.sign(operator_id, role, settings.operator_auth_secret)
 
 
 def require_operator(
@@ -55,10 +50,11 @@ def require_operator(
 ) -> Operator:
     """Resolve the authenticated operator from the signed proxy headers, or 401. Every route depends
     on this — there is no anonymous access."""
-    if not (x_operator_id and x_operator_role and x_operator_sig):
+    if not (x_operator_id and x_operator_role):
         raise HTTPException(status_code=401, detail="operator authentication required")
-    expected = sign_identity(x_operator_id, x_operator_role)
-    if not hmac.compare_digest(expected, x_operator_sig):  # constant-time; unforgeable without the secret
+    if not operator_identity.verify(
+        x_operator_id, x_operator_role, x_operator_sig, settings.operator_auth_secret
+    ):
         raise HTTPException(status_code=401, detail="invalid operator signature")
     return Operator(id=x_operator_id, role=x_operator_role)
 

@@ -1,6 +1,6 @@
 # ab_console — operator guide & verification report
 
-The human control plane for the autonomous-business fleet. Design: ADR-0056; requirements: PRD 0006;
+The human control plane for the autonomous-business fleet. UI: daisyUI + Tailwind (vendored, no build step, no CDN), dark/light toggle in the top bar. Design: ADR-0056; requirements: PRD 0006;
 issues: `.scratch/gui/`.
 
 ## Running it

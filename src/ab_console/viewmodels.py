@@ -301,3 +301,24 @@ def decisions_view(
     """The approval queue, highest-authority first — the human-in-the-loop workspace."""
     ordered = sorted(pending, key=lambda d: (-d.required_level, d.decision_id))
     return DecisionsView(pending=ordered, acted=acted, error=error)
+
+
+# --- v0.3: daisyUI badge mapping (presentation only) -----------------------------------------------
+
+_STATUS_BADGE = {
+    "OK": "badge-success",
+    "WARNING": "badge-warning",
+    "CRITICAL": "badge-error",
+    "UNKNOWN": "badge-ghost",
+}
+_ACTION_BADGE = {"scale": "badge-success", "kill": "badge-error"}
+
+
+def status_badge(status: str) -> str:
+    """Map a monitor status to its daisyUI badge class (semantic green/amber/red)."""
+    return _STATUS_BADGE.get(status.upper(), "badge-ghost")
+
+
+def action_badge(action: str) -> str:
+    """Map an experiment action to its badge class: scale wins, kill loses, the rest amber."""
+    return _ACTION_BADGE.get(action.lower(), "badge-warning")

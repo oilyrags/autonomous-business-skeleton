@@ -94,6 +94,17 @@ approval workflows, custom dashboards.
   gateway-backed adapter lands with the backend approval queue) — a rejection requires an audited
   note; 400/400/502 error paths. Nav gains Decisions + Live feed. 11 new tests (33 console total).
 
+- **v0.3 (owner-directed — Tailwind + daisyUI, direct):** the design system moved from fully
+  hand-crafted CSS to **daisyUI 5 components + the Tailwind 4 browser runtime, vendored** into
+  `static/vendor/` (~1.3 MB; no CDN at runtime, still **no Node toolchain** — the "direct" path
+  resolves the objection that made decision #1 reject Tailwind). Every template re-skinned with
+  daisyUI (navbar, menu, stats, table-zebra, badges, cards, alerts, hero empty-states); semantic
+  green/amber/red via pure `status_badge`/`action_badge` filters; **dark/light toggle**
+  (`business`/`corporate` themes, localStorage + prefers-color-scheme, set before first paint);
+  `console.css` slimmed to a custom layer (tabular numerals, sparkline crispness, reduced-motion,
+  and a `form-control` stacked-label shim daisyUI 5 dropped). Visually verified via live preview in
+  both themes (fleet, decisions, kill switch). Sparklines/SSE/EventSource unchanged.
+
 ## Considered: Webstudio (open-source visual builder)
 
 Offered by the owner as a possible accelerator. Declined for the console: Webstudio is a

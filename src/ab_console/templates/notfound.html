@@ -1,8 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Not found{% endblock %}
 {% block main %}
-  <div class="empty">
-    <div class="big">No business called “{{ business_id }}”</div>
-    <div>It may have been sunset, or the id is mistyped. <a href="/">Back to the fleet</a>.</div>
+  <div class="hero py-24">
+    <div class="hero-content text-center">
+      <div>
+        <p class="text-lg font-medium">No business called “{{ business_id }}”</p>
+        <p class="opacity-60 mt-1">It may have been sunset, or the id is mistyped.</p>
+        <a href="/" class="btn btn-primary btn-sm mt-4">Back to the fleet</a>
+      </div>
+    </div>
   </div>
 {% endblock %}

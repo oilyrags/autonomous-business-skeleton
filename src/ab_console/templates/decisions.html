@@ -1,47 +1,49 @@
 {% extends "base.html" %}
 {% block title %}Decisions{% endblock %}
 {% block main %}
-  <h1>Decisions</h1>
-  <p class="subtle">Pending high-stakes decisions awaiting a human — highest authority first. Every action is audited.</p>
+  <h1 class="text-3xl font-semibold tracking-tight">Decisions</h1>
+  <p class="text-sm opacity-60 mt-1 mb-6">Pending high-stakes decisions awaiting a human — highest authority first. Every action is audited.</p>
 
   {% if view.acted %}
-    <div class="banner" style="background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent);" role="status">
-      {{ view.acted }}
-    </div>
+    <div class="alert alert-success mb-6" role="status"><span>{{ view.acted }}</span></div>
   {% endif %}
   {% if view.error %}
-    <div class="banner" role="alert">{{ view.error }}</div>
+    <div class="alert alert-warning mb-6" role="alert"><span>{{ view.error }}</span></div>
   {% endif %}
 
   {% if view.pending %}
     {% for d in view.pending %}
-      <div class="card" style="margin-bottom: 16px; padding: 18px;">
-        <div style="display: flex; align-items: baseline; gap: 12px;">
-          <strong>{{ d.summary }}</strong>
-          <span class="pill warning">L{{ d.required_level }}</span>
-          <span class="spacer" style="flex: 1;"></span>
-          <span style="font-size: 13px; color: var(--fg-3);">{{ d.decision_id }}</span>
+      <div class="card bg-base-100 shadow mb-4">
+        <div class="card-body">
+          <div class="flex items-baseline gap-3 flex-wrap">
+            <strong>{{ d.summary }}</strong>
+            <span class="badge badge-warning">L{{ d.required_level }}</span>
+            <span class="flex-1"></span>
+            <span class="text-sm opacity-40">{{ d.decision_id }}</span>
+          </div>
+          <div class="text-sm opacity-60">
+            {{ d.kind }} · proposed by {{ d.maker }}
+            {% if d.amount_minor is not none %} · <strong>{{ d.amount_minor | money }}</strong>{% endif %}
+            {% if d.business_id %} · <a class="link" href="/business/{{ d.business_id }}">{{ d.business_id }}</a>{% endif %}
+          </div>
+          <form method="post" action="/decisions/act" class="flex items-center gap-2 mt-3">
+            <input type="hidden" name="decision_id" value="{{ d.decision_id }}">
+            <input class="input input-bordered input-sm flex-1" name="note"
+                   placeholder="note (audited; required to reject)" aria-label="Decision note">
+            <button type="submit" name="action" value="approve" class="btn btn-primary btn-sm">Approve</button>
+            <button type="submit" name="action" value="reject" class="btn btn-outline btn-error btn-sm">Reject</button>
+          </form>
         </div>
-        <div style="font-size: 13px; color: var(--fg-2); margin: 8px 0 14px;">
-          {{ d.kind }} · proposed by {{ d.maker }}
-          {% if d.amount_minor is not none %} · <strong>{{ d.amount_minor | money }}</strong>{% endif %}
-          {% if d.business_id %} · <a href="/business/{{ d.business_id }}">{{ d.business_id }}</a>{% endif %}
-        </div>
-        <form method="post" action="/decisions/act" style="display: flex; gap: 10px; align-items: center;">
-          <input type="hidden" name="decision_id" value="{{ d.decision_id }}">
-          <input name="note" placeholder="note (audited; required to reject)" aria-label="Decision note"
-                 style="flex: 1; background: var(--bg-raised); color: var(--fg); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 10px;">
-          <button type="submit" name="action" value="approve"
-                  style="background: var(--accent); color: white; border: 0; border-radius: 8px; padding: 8px 16px; font-weight: 500; cursor: pointer;">Approve</button>
-          <button type="submit" name="action" value="reject"
-                  style="background: var(--bg-raised); color: var(--crit); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 16px; font-weight: 500; cursor: pointer;">Reject</button>
-        </form>
       </div>
     {% endfor %}
   {% else %}
-    <div class="empty">
-      <div class="big">Nothing awaits you</div>
-      <div>Agents are operating within policy. High-stakes decisions will queue here.</div>
+    <div class="hero py-16">
+      <div class="hero-content text-center">
+        <div>
+          <p class="text-lg font-medium">Nothing awaits you</p>
+          <p class="opacity-60 mt-1">Agents are operating within policy. High-stakes decisions will queue here.</p>
+        </div>
+      </div>
     </div>
   {% endif %}
 {% endblock %}

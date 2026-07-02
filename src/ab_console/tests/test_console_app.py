@@ -26,7 +26,7 @@ def test_dashboard_renders_totals_and_business_rows(client: TestClient) -> None:
     assert "rocket" in body and "hog" in body  # business rows
     assert "€16,500.00" in body  # fleet total revenue (1_650_000 minor)
     assert "-€300.00" in body  # hog's operating loss (-30_000 minor)
-    assert 'class="pill critical"' in body  # hog's critical health pill
+    assert "badge-error" in body  # hog's critical health badge (daisyUI semantic red)
     assert "3 businesses under management" in body
 
 
@@ -58,7 +58,7 @@ def test_active_kill_switch_shows_the_banner(client: TestClient) -> None:
     )
     body = client.get("/").text
     assert "Kill switch is ACTIVE" in body and "rotation drill" in body
-    assert 'class="pill critical">kill switch active' in body  # top-bar state
+    assert ">kill switch active</span>" in body  # top-bar badge state
 
 
 def test_render_smoke_exits_zero() -> None:

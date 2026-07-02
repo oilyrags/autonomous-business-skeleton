@@ -1,61 +1,79 @@
 {% extends "base.html" %}
 {% block title %}Fleet{% endblock %}
 {% block main %}
-  <h1>Fleet</h1>
-  <p class="subtle">{{ view.businesses }} business{{ "es" if view.businesses != 1 }} under management</p>
+  <h1 class="text-3xl font-semibold tracking-tight">Fleet</h1>
+  <p class="text-sm opacity-60 mt-1 mb-6">{{ view.businesses }} business{{ "es" if view.businesses != 1 }} under management</p>
 
   {% if view.kill_switch_active %}
-    <div class="banner" role="alert">
-      Kill switch is ACTIVE{% if view.kill_switch_reason %} — {{ view.kill_switch_reason }}{% endif %}. Agents are halted.
+    <div class="alert alert-error mb-6" role="alert">
+      <span>Kill switch is ACTIVE{% if view.kill_switch_reason %} — {{ view.kill_switch_reason }}{% endif %}. Agents are halted.</span>
     </div>
   {% endif %}
 
   {% if view.businesses == 0 %}
-    <div class="empty">
-      <div class="big">No businesses yet</div>
-      <div>Provision one through the Business Factory and it will appear here.</div>
+    <div class="hero py-16">
+      <div class="hero-content text-center">
+        <div>
+          <p class="text-lg font-medium">No businesses yet</p>
+          <p class="opacity-60 mt-1">Provision one through the Business Factory and it will appear here.</p>
+        </div>
+      </div>
     </div>
   {% else %}
-    <section class="stats" aria-label="Fleet totals">
-      <div class="stat"><div class="label">Businesses</div><div class="value">{{ view.businesses }}</div></div>
-      <div class="stat"><div class="label">Revenue</div><div class="value">{{ view.total_revenue_minor | money }}</div></div>
-      <div class="stat"><div class="label">Spend</div><div class="value">{{ view.total_spend_minor | money }}</div></div>
+    <section class="stats stats-vertical sm:stats-horizontal shadow w-full mb-8" aria-label="Fleet totals">
       <div class="stat">
-        <div class="label">Operating profit</div>
-        <div class="value {{ 'neg' if view.total_operating_profit_minor < 0 }}">{{ view.total_operating_profit_minor | money }}</div>
+        <div class="stat-title">Businesses</div>
+        <div class="stat-value text-2xl">{{ view.businesses }}</div>
       </div>
-      <div class="stat"><div class="label">Unprofitable</div><div class="value">{{ view.unprofitable }}</div></div>
+      <div class="stat">
+        <div class="stat-title">Revenue</div>
+        <div class="stat-value text-2xl">{{ view.total_revenue_minor | money }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">Spend</div>
+        <div class="stat-value text-2xl">{{ view.total_spend_minor | money }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">Operating profit</div>
+        <div class="stat-value text-2xl {{ 'text-error' if view.total_operating_profit_minor < 0 }}">{{ view.total_operating_profit_minor | money }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">Unprofitable</div>
+        <div class="stat-value text-2xl {{ 'text-error' if view.unprofitable }}">{{ view.unprofitable }}</div>
+      </div>
     </section>
 
-    <div class="card">
-      <h2>Businesses</h2>
-      <table>
-        <thead>
-          <tr><th scope="col">Business</th><th scope="col">Verdict</th>
-              <th scope="col">Trend</th>
-              <th scope="col" class="num">Operating profit</th><th scope="col">Health</th></tr>
-        </thead>
-        <tbody>
-          {% for row in view.rows %}
-            <tr>
-              <td><a href="/business/{{ row.business_id }}">{{ row.business_id }}</a></td>
-              <td>{{ row.verdict }}</td>
-              <td>
-                {% set pts = row.trend | spark %}
-                {% if pts %}
-                  <svg width="120" height="28" viewBox="0 0 120 28" role="img"
-                       aria-label="profit trend for {{ row.business_id }}"
-                       style="color: {{ 'var(--crit)' if row.operating_profit_minor < 0 else 'var(--ok)' }};">
-                    <polyline points="{{ pts }}" fill="none" stroke="currentColor" stroke-width="1.5"/>
-                  </svg>
-                {% else %}<span class="subtle">–</span>{% endif %}
-              </td>
-              <td class="num {{ 'neg' if row.operating_profit_minor < 0 }}">{{ row.operating_profit_minor | money }}</td>
-              <td><span class="pill {{ row.status | lower }}">{{ row.status }}</span></td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="card bg-base-100 shadow">
+      <div class="card-body p-0">
+        <h2 class="card-title px-6 pt-5 pb-2 text-base">Businesses</h2>
+        <table class="table table-zebra">
+          <thead>
+            <tr><th scope="col">Business</th><th scope="col">Verdict</th>
+                <th scope="col">Trend</th>
+                <th scope="col" class="text-right">Operating profit</th><th scope="col">Health</th></tr>
+          </thead>
+          <tbody>
+            {% for row in view.rows %}
+              <tr>
+                <td><a class="link link-hover font-medium" href="/business/{{ row.business_id }}">{{ row.business_id }}</a></td>
+                <td>{{ row.verdict }}</td>
+                <td>
+                  {% set pts = row.trend | spark %}
+                  {% if pts %}
+                    <svg width="120" height="28" viewBox="0 0 120 28" role="img"
+                         aria-label="profit trend for {{ row.business_id }}"
+                         class="{{ 'text-error' if row.operating_profit_minor < 0 else 'text-success' }}">
+                      <polyline points="{{ pts }}" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                  {% else %}<span class="opacity-40">–</span>{% endif %}
+                </td>
+                <td class="text-right tabular-nums {{ 'text-error' if row.operating_profit_minor < 0 }}">{{ row.operating_profit_minor | money }}</td>
+                <td><span class="badge {{ row.status | status_badge }}">{{ row.status }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   {% endif %}
 {% endblock %}

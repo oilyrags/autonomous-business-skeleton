@@ -1,40 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Experiments{% endblock %}
 {% block main %}
-  <h1>Experiments</h1>
-  <p class="subtle">
-    {% if view.business_id %}filtered to {{ view.business_id }} · <a href="/experiments">clear</a>
+  <h1 class="text-3xl font-semibold tracking-tight">Experiments</h1>
+  <p class="text-sm opacity-60 mt-1 mb-6">
+    {% if view.business_id %}filtered to {{ view.business_id }} · <a class="link" href="/experiments">clear</a>
     {% else %}{{ view.rows | length }} experiment{{ "s" if view.rows | length != 1 }} across the fleet{% endif %}
   </p>
 
   {% if view.rows %}
-    <div class="card">
-      <h2>Outcomes</h2>
-      <table>
-        <thead>
-          <tr><th scope="col">Experiment</th><th scope="col">Business</th><th scope="col">Hypothesis</th>
-              <th scope="col">Decision</th><th scope="col">p-value</th><th scope="col" class="num">Lift</th>
-              <th scope="col" class="num">Control → Variant</th></tr>
-        </thead>
-        <tbody>
-          {% for e in view.rows %}
-            <tr>
-              <td>{{ e.experiment_id }}</td>
-              <td><a href="/business/{{ e.business_id }}">{{ e.business_id }}</a></td>
-              <td>{{ e.hypothesis }}</td>
-              <td><span class="pill {{ 'ok' if e.action == 'scale' else ('critical' if e.action == 'kill' else 'warning') }}">{{ e.action }}</span></td>
-              <td>{{ "%.4f" | format(e.p_value) }}</td>
-              <td class="num">{{ "%+.1f%%" | format(e.lift * 100) }}</td>
-              <td class="num">{{ "%.1f%%" | format(e.control_rate * 100) }} → {{ "%.1f%%" | format(e.variant_rate * 100) }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="card bg-base-100 shadow">
+      <div class="card-body p-0">
+        <h2 class="card-title px-6 pt-5 pb-2 text-base">Outcomes</h2>
+        <table class="table table-zebra">
+          <thead>
+            <tr><th scope="col">Experiment</th><th scope="col">Business</th><th scope="col">Hypothesis</th>
+                <th scope="col">Decision</th><th scope="col">p-value</th><th scope="col" class="text-right">Lift</th>
+                <th scope="col" class="text-right">Control → Variant</th></tr>
+          </thead>
+          <tbody>
+            {% for e in view.rows %}
+              <tr>
+                <td>{{ e.experiment_id }}</td>
+                <td><a class="link link-hover" href="/business/{{ e.business_id }}">{{ e.business_id }}</a></td>
+                <td>{{ e.hypothesis }}</td>
+                <td><span class="badge {{ e.action | action_badge }}">{{ e.action }}</span></td>
+                <td>{{ "%.4f" | format(e.p_value) }}</td>
+                <td class="text-right tabular-nums">{{ "%+.1f%%" | format(e.lift * 100) }}</td>
+                <td class="text-right tabular-nums">{{ "%.1f%%" | format(e.control_rate * 100) }} → {{ "%.1f%%" | format(e.variant_rate * 100) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   {% else %}
-    <div class="empty">
-      <div class="big">No experiments{% if view.business_id %} for {{ view.business_id }}{% endif %}</div>
-      <div>The growth engine records outcomes here as experiments conclude.</div>
+    <div class="hero py-16">
+      <div class="hero-content text-center">
+        <div>
+          <p class="text-lg font-medium">No experiments{% if view.business_id %} for {{ view.business_id }}{% endif %}</p>
+          <p class="opacity-60 mt-1">The growth engine records outcomes here as experiments conclude.</p>
+        </div>
+      </div>
     </div>
   {% endif %}
 {% endblock %}

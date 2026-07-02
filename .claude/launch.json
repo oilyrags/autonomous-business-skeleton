@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "console",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["PYTHONPATH=src", "uv", "run", "uvicorn", "ab_console.app:app", "--port", "8600"],
+      "port": 8600
+    }
+  ]
+}

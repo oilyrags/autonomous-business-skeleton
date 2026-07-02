@@ -1,37 +1,66 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="business">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Console{% endblock %} · Autonomous Business</title>
+  <!-- Tailwind + daisyUI, vendored (no CDN at runtime, no Node toolchain — the "direct" path). -->
+  <link rel="stylesheet" href="/static/vendor/daisyui.css">
+  <link rel="stylesheet" href="/static/vendor/daisyui-themes.css">
   <link rel="stylesheet" href="/static/console.css">
+  <script src="/static/vendor/tailwind-browser.js"></script>
+  <script>
+    // Theme before first paint: business (dark) / corporate (light), user-overridable.
+    (function () {
+      const saved = localStorage.getItem("console-theme");
+      const dark = saved ? saved === "business"
+        : window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.setAttribute("data-theme", dark ? "business" : "corporate");
+    })();
+  </script>
 </head>
-<body>
-  <header class="topbar">
-    <span class="brand">Autonomous Business</span>
-    <span class="env">console</span>
-    <span class="spacer"></span>
-    {% if chrome.kill_switch_active %}
-      <span class="pill critical">kill switch active</span>
-    {% else %}
-      <span class="pill ok">operational</span>
-    {% endif %}
-    {% if chrome.alert_count %}
-      <span class="pill critical">{{ chrome.alert_count }} alert{{ "s" if chrome.alert_count != 1 }}</span>
-    {% endif %}
+<body class="min-h-screen bg-base-200">
+  <header class="navbar bg-base-100 border-b border-base-300 sticky top-0 z-10 px-4">
+    <div class="flex-1 flex items-center gap-3">
+      <span class="text-lg font-semibold tracking-tight">Autonomous Business</span>
+      <span class="badge badge-ghost badge-sm">console</span>
+    </div>
+    <div class="flex items-center gap-2">
+      {% if chrome.kill_switch_active %}
+        <span class="badge badge-error">kill switch active</span>
+      {% else %}
+        <span class="badge badge-success badge-outline">operational</span>
+      {% endif %}
+      {% if chrome.alert_count %}
+        <span class="badge badge-error">{{ chrome.alert_count }} alert{{ "s" if chrome.alert_count != 1 }}</span>
+      {% endif %}
+      <button id="theme-toggle" class="btn btn-ghost btn-sm btn-circle" aria-label="Toggle dark or light theme">◐</button>
+    </div>
   </header>
-  <div class="layout">
-    <nav class="side" aria-label="Primary">
-      <a href="/" {% if chrome.nav == "fleet" %}aria-current="page"{% endif %}>Fleet</a>
-      <a href="/decisions" {% if chrome.nav == "decisions" %}aria-current="page"{% endif %}>Decisions</a>
-      <a href="/feed" {% if chrome.nav == "feed" %}aria-current="page"{% endif %}>Live feed</a>
-      <a href="/experiments" {% if chrome.nav == "experiments" %}aria-current="page"{% endif %}>Experiments</a>
-      <a href="/audit" {% if chrome.nav == "audit" %}aria-current="page"{% endif %}>Audit</a>
-      <a href="/killswitch" {% if chrome.nav == "killswitch" %}aria-current="page"{% endif %}>Kill switch</a>
+
+  <div class="flex">
+    <nav class="w-52 shrink-0 border-r border-base-300 min-h-screen p-3 hidden md:block" aria-label="Primary">
+      <ul class="menu w-full gap-1">
+        <li><a href="/" {% if chrome.nav == "fleet" %}class="menu-active" aria-current="page"{% endif %}>Fleet</a></li>
+        <li><a href="/decisions" {% if chrome.nav == "decisions" %}class="menu-active" aria-current="page"{% endif %}>Decisions</a></li>
+        <li><a href="/feed" {% if chrome.nav == "feed" %}class="menu-active" aria-current="page"{% endif %}>Live feed</a></li>
+        <li><a href="/experiments" {% if chrome.nav == "experiments" %}class="menu-active" aria-current="page"{% endif %}>Experiments</a></li>
+        <li><a href="/audit" {% if chrome.nav == "audit" %}class="menu-active" aria-current="page"{% endif %}>Audit</a></li>
+        <li><a href="/killswitch" {% if chrome.nav == "killswitch" %}class="menu-active" aria-current="page"{% endif %}>Kill switch</a></li>
+      </ul>
     </nav>
-    <main>
+    <main class="flex-1 p-6 lg:p-8 max-w-5xl">
       {% block main %}{% endblock %}
     </main>
   </div>
+
+  <script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+      const html = document.documentElement;
+      const next = html.getAttribute("data-theme") === "business" ? "corporate" : "business";
+      html.setAttribute("data-theme", next);
+      localStorage.setItem("console-theme", next);
+    });
+  </script>
 </body>
 </html>

@@ -1,52 +1,60 @@
 {% extends "base.html" %}
 {% block title %}Audit{% endblock %}
 {% block main %}
-  <h1>Audit &amp; decisions</h1>
-  <p class="subtle">
-    {% if view.integrity_intact %}<span class="pill ok">hash chain intact</span>
-    {% else %}<span class="pill critical">hash chain BROKEN</span>{% endif %}
-    · every material decision, tamper-evident
+  <h1 class="text-3xl font-semibold tracking-tight">Audit &amp; decisions</h1>
+  <p class="text-sm opacity-60 mt-1 mb-6 flex items-center gap-2">
+    {% if view.integrity_intact %}<span class="badge badge-success">hash chain intact</span>
+    {% else %}<span class="badge badge-error">hash chain BROKEN</span>{% endif %}
+    every material decision, tamper-evident
   </p>
 
-  <form method="get" action="/audit" class="card" style="padding: 14px 18px; margin-bottom: 20px; display: flex; gap: 12px; align-items: end;">
-    <label style="font-size: 13px; color: var(--fg-2);">Business
-      <input name="business_id" value="{{ view.business_id or '' }}" placeholder="any"
-             style="display: block; margin-top: 4px; background: var(--bg-raised); color: var(--fg); border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 10px;">
-    </label>
-    <label style="font-size: 13px; color: var(--fg-2);">Agent
-      <input name="agent_id" value="{{ view.agent_id or '' }}" placeholder="any"
-             style="display: block; margin-top: 4px; background: var(--bg-raised); color: var(--fg); border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 10px;">
-    </label>
-    <button type="submit" style="background: var(--accent); color: white; border: 0; border-radius: 8px; padding: 8px 16px; font-weight: 500; cursor: pointer;">Filter</button>
-    {% if view.business_id or view.agent_id %}<a href="/audit" style="font-size: 13px;">clear</a>{% endif %}
+  <form method="get" action="/audit" class="card bg-base-100 shadow mb-6">
+    <div class="card-body flex-row flex-wrap items-end gap-4 py-4">
+      <label class="form-control">
+        <span class="label-text text-xs opacity-60 mb-1">Business</span>
+        <input class="input input-bordered input-sm" name="business_id" value="{{ view.business_id or '' }}" placeholder="any">
+      </label>
+      <label class="form-control">
+        <span class="label-text text-xs opacity-60 mb-1">Agent</span>
+        <input class="input input-bordered input-sm" name="agent_id" value="{{ view.agent_id or '' }}" placeholder="any">
+      </label>
+      <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+      {% if view.business_id or view.agent_id %}<a href="/audit" class="link text-sm">clear</a>{% endif %}
+    </div>
   </form>
 
   {% if view.rows %}
-    <div class="card">
-      <h2>Decisions</h2>
-      <table>
-        <thead>
-          <tr><th scope="col">Decision</th><th scope="col">Agent</th><th scope="col">Authority</th>
-              <th scope="col">Approval</th><th scope="col">Business</th><th scope="col">When</th></tr>
-        </thead>
-        <tbody>
-          {% for r in view.rows %}
-            <tr>
-              <td>{{ r.decision_id }}</td>
-              <td>{{ r.agent_id }}</td>
-              <td>L{{ r.authority_level }}</td>
-              <td><span class="pill {{ 'ok' if r.approval_status in ('approved', 'autonomous_within_policy') else 'warning' }}">{{ r.approval_status }}</span></td>
-              <td>{% if r.business_id %}<a href="/business/{{ r.business_id }}">{{ r.business_id }}</a>{% else %}–{% endif %}</td>
-              <td>{{ r.occurred_at }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="card bg-base-100 shadow">
+      <div class="card-body p-0">
+        <h2 class="card-title px-6 pt-5 pb-2 text-base">Decisions</h2>
+        <table class="table table-zebra">
+          <thead>
+            <tr><th scope="col">Decision</th><th scope="col">Agent</th><th scope="col">Authority</th>
+                <th scope="col">Approval</th><th scope="col">Business</th><th scope="col">When</th></tr>
+          </thead>
+          <tbody>
+            {% for r in view.rows %}
+              <tr>
+                <td>{{ r.decision_id }}</td>
+                <td>{{ r.agent_id }}</td>
+                <td>L{{ r.authority_level }}</td>
+                <td><span class="badge {{ 'badge-success' if r.approval_status in ('approved', 'autonomous_within_policy') else 'badge-warning' }}">{{ r.approval_status }}</span></td>
+                <td>{% if r.business_id %}<a class="link link-hover" href="/business/{{ r.business_id }}">{{ r.business_id }}</a>{% else %}–{% endif %}</td>
+                <td class="tabular-nums">{{ r.occurred_at }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   {% else %}
-    <div class="empty">
-      <div class="big">No decisions match</div>
-      <div>Loosen the filters, or wait for agents to act.</div>
+    <div class="hero py-16">
+      <div class="hero-content text-center">
+        <div>
+          <p class="text-lg font-medium">No decisions match</p>
+          <p class="opacity-60 mt-1">Loosen the filters, or wait for agents to act.</p>
+        </div>
+      </div>
     </div>
   {% endif %}
 {% endblock %}

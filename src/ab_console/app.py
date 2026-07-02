@@ -28,6 +28,7 @@ from ab_console.viewmodels import (
     ExperimentRow,
     FleetView,
     PendingDecision,
+    action_badge,
     audit_view,
     business_detail,
     decisions_view,
@@ -36,6 +37,7 @@ from ab_console.viewmodels import (
     fmt_money,
     intervention_view,
     sparkline_points,
+    status_badge,
 )
 from ab_econ.core import UnitEconomics, UnitInputs, economics
 from ab_monitor.check import CheckResult, CheckStatus
@@ -45,6 +47,8 @@ _DIR = Path(__file__).parent
 templates = Jinja2Templates(directory=str(_DIR / "templates"))
 templates.env.filters["money"] = fmt_money
 templates.env.filters["spark"] = sparkline_points
+templates.env.filters["status_badge"] = status_badge
+templates.env.filters["action_badge"] = action_badge
 
 app = FastAPI(title="ab_console")
 app.mount("/static", StaticFiles(directory=str(_DIR / "static")), name="static")

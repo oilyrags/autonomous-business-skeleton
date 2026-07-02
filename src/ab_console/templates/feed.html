@@ -1,19 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Live feed{% endblock %}
 {% block main %}
-  <h1>Live feed</h1>
-  <p class="subtle">Domain events as they happen on the bus — decisions, experiments, money, content.</p>
+  <h1 class="text-3xl font-semibold tracking-tight">Live feed</h1>
+  <p class="text-sm opacity-60 mt-1 mb-6">Domain events as they happen on the bus — decisions, experiments, money, content.</p>
 
-  <div class="card">
-    <h2>Events <span class="pill ok" id="feed-state">connecting…</span></h2>
-    <table aria-live="polite">
-      <thead>
-        <tr><th scope="col">Event</th><th scope="col">Business</th><th scope="col">Detail</th></tr>
-      </thead>
-      <tbody id="feed-rows">
-        <tr id="feed-empty"><td colspan="3" class="empty">Waiting for events…</td></tr>
-      </tbody>
-    </table>
+  <div class="card bg-base-100 shadow">
+    <div class="card-body p-0">
+      <h2 class="card-title px-6 pt-5 pb-2 text-base">
+        Events <span class="badge badge-success badge-sm" id="feed-state">connecting…</span>
+      </h2>
+      <table class="table" aria-live="polite">
+        <thead>
+          <tr><th scope="col">Event</th><th scope="col">Business</th><th scope="col">Detail</th></tr>
+        </thead>
+        <tbody id="feed-rows">
+          <tr id="feed-empty"><td colspan="3" class="opacity-60">Waiting for events…</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <script>
@@ -37,6 +41,11 @@
       }
       rows.prepend(tr);
     };
-    es.onerror = () => { state.textContent = "stream ended"; state.classList.remove("ok"); es.close(); };
+    es.onerror = () => {
+      state.textContent = "stream ended";
+      state.classList.remove("badge-success");
+      state.classList.add("badge-ghost");
+      es.close();
+    };
   </script>
 {% endblock %}

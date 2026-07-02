@@ -1,61 +1,90 @@
 {% extends "base.html" %}
 {% block title %}{{ view.business_id }}{% endblock %}
 {% block main %}
-  <h1>{{ view.business_id }}</h1>
-  <p class="subtle">{{ view.verdict }} · health <span class="pill {{ view.status | lower }}">{{ view.status }}</span></p>
+  <h1 class="text-3xl font-semibold tracking-tight">{{ view.business_id }}</h1>
+  <p class="text-sm opacity-60 mt-1 mb-6">
+    {{ view.verdict }} · health <span class="badge badge-sm {{ view.status | status_badge }}">{{ view.status }}</span>
+  </p>
 
-  <section class="stats" aria-label="Unit economics">
-    <div class="stat"><div class="label">Revenue</div><div class="value">{{ view.revenue_minor | money }}</div></div>
+  <section class="stats stats-vertical sm:stats-horizontal shadow w-full mb-6" aria-label="Unit economics">
     <div class="stat">
-      <div class="label">Operating profit</div>
-      <div class="value {{ 'neg' if view.operating_profit_minor < 0 }}">{{ view.operating_profit_minor | money }}</div>
+      <div class="stat-title">Revenue</div>
+      <div class="stat-value text-2xl">{{ view.revenue_minor | money }}</div>
     </div>
-    <div class="stat"><div class="label">LLM spend</div><div class="value">{{ view.llm_spend_minor | money }}</div></div>
-    <div class="stat"><div class="label">Ad spend</div><div class="value">{{ view.ad_spend_minor | money }}</div></div>
-    <div class="stat"><div class="label">CAC</div><div class="value">{{ view.cac_minor | money if view.cac_minor is not none else "–" }}</div></div>
-    <div class="stat"><div class="label">LTV</div><div class="value">{{ view.ltv_minor | money if view.ltv_minor is not none else "–" }}</div></div>
-    <div class="stat"><div class="label">Gross margin</div><div class="value">{{ (view.gross_margin_bps / 100) | round(1) ~ "%" if view.gross_margin_bps is not none else "–" }}</div></div>
-    <div class="stat"><div class="label">Payback</div><div class="value">{{ view.payback_periods ~ " periods" if view.payback_periods is not none else "–" }}</div></div>
+    <div class="stat">
+      <div class="stat-title">Operating profit</div>
+      <div class="stat-value text-2xl {{ 'text-error' if view.operating_profit_minor < 0 }}">{{ view.operating_profit_minor | money }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">LLM spend</div>
+      <div class="stat-value text-2xl">{{ view.llm_spend_minor | money }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Ad spend</div>
+      <div class="stat-value text-2xl">{{ view.ad_spend_minor | money }}</div>
+    </div>
+  </section>
+  <section class="stats stats-vertical sm:stats-horizontal shadow w-full mb-8" aria-label="Customer economics">
+    <div class="stat">
+      <div class="stat-title">CAC</div>
+      <div class="stat-value text-2xl">{{ view.cac_minor | money if view.cac_minor is not none else "–" }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">LTV</div>
+      <div class="stat-value text-2xl">{{ view.ltv_minor | money if view.ltv_minor is not none else "–" }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Gross margin</div>
+      <div class="stat-value text-2xl">{{ (view.gross_margin_bps / 100) | round(1) ~ "%" if view.gross_margin_bps is not none else "–" }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Payback</div>
+      <div class="stat-value text-2xl">{{ view.payback_periods ~ " periods" if view.payback_periods is not none else "–" }}</div>
+    </div>
   </section>
 
-  <div class="card" style="margin-bottom: 24px;">
-    <h2>Health checks</h2>
-    {% if view.checks %}
-      <table>
-        <thead><tr><th scope="col">Check</th><th scope="col">Status</th><th scope="col">Detail</th></tr></thead>
-        <tbody>
-          {% for c in view.checks %}
-            <tr>
-              <td>{{ c.name }}</td>
-              <td><span class="pill {{ c.status.name | lower }}">{{ c.status.name }}</span></td>
-              <td>{{ c.output }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty"><div class="big">No checks reported</div></div>
-    {% endif %}
+  <div class="card bg-base-100 shadow mb-6">
+    <div class="card-body p-0">
+      <h2 class="card-title px-6 pt-5 pb-2 text-base">Health checks</h2>
+      {% if view.checks %}
+        <table class="table">
+          <thead><tr><th scope="col">Check</th><th scope="col">Status</th><th scope="col">Detail</th></tr></thead>
+          <tbody>
+            {% for c in view.checks %}
+              <tr>
+                <td>{{ c.name }}</td>
+                <td><span class="badge {{ c.status.name | status_badge }}">{{ c.status.name }}</span></td>
+                <td>{{ c.output }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="px-6 pb-6 opacity-60">No checks reported.</p>
+      {% endif %}
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Experiments</h2>
-    {% if view.experiments %}
-      <table>
-        <thead><tr><th scope="col">Experiment</th><th scope="col">Decision</th><th scope="col">p-value</th><th scope="col" class="num">Lift</th></tr></thead>
-        <tbody>
-          {% for e in view.experiments %}
-            <tr>
-              <td>{{ e.experiment_id }}</td>
-              <td><span class="pill {{ 'ok' if e.action == 'scale' else ('critical' if e.action == 'kill' else 'warning') }}">{{ e.action }}</span></td>
-              <td>{{ "%.4f" | format(e.p_value) }}</td>
-              <td class="num">{{ "%+.1f%%" | format(e.lift * 100) }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty"><div class="big">No experiments yet</div></div>
-    {% endif %}
+  <div class="card bg-base-100 shadow">
+    <div class="card-body p-0">
+      <h2 class="card-title px-6 pt-5 pb-2 text-base">Experiments</h2>
+      {% if view.experiments %}
+        <table class="table">
+          <thead><tr><th scope="col">Experiment</th><th scope="col">Decision</th><th scope="col">p-value</th><th scope="col" class="text-right">Lift</th></tr></thead>
+          <tbody>
+            {% for e in view.experiments %}
+              <tr>
+                <td>{{ e.experiment_id }}</td>
+                <td><span class="badge {{ e.action | action_badge }}">{{ e.action }}</span></td>
+                <td>{{ "%.4f" | format(e.p_value) }}</td>
+                <td class="text-right tabular-nums">{{ "%+.1f%%" | format(e.lift * 100) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="px-6 pb-6 opacity-60">No experiments yet.</p>
+      {% endif %}
+    </div>
   </div>
 {% endblock %}

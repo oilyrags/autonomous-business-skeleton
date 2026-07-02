@@ -1,21 +1,38 @@
 """The console FastAPI app: renders the deterministic view-models through the HIG design system.
 
-In production the fleet provider reads live snapshots (ledger → ab_obs) + monitor checks + the
-kill-switch state; here it returns a deterministic sample so the page renders with no infra. The
-provider is a FastAPI dependency, so tests can override it (e.g. to exercise the empty state).
+In production the providers read live state (ledger → ab_obs, monitor checks, kill switch, growth
+outcomes, the decisions table); here they return deterministic samples so every page renders with
+no infra. Each provider is a FastAPI dependency, so tests override them (empty states, kill-switch
+banner, filters). Mutations (the kill switch) go through the governed port — the console can do
+nothing an agent couldn't.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import parse_qs
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from ab_console.viewmodels import FleetView, fleet, fmt_money
+from ab_console.killswitch_port import KillSwitchPort, StubKillSwitchPort
+from ab_console.viewmodels import (
+    CONFIRM_PHRASE,
+    AuditRow,
+    ExperimentRow,
+    FleetView,
+    audit_view,
+    business_detail,
+    experiments_view,
+    fleet,
+    fmt_money,
+    intervention_view,
+)
+from ab_econ.core import UnitEconomics, UnitInputs, economics
 from ab_monitor.check import CheckResult, CheckStatus
 from ab_obs.core import Anomaly, AnomalyKind, BusinessSnapshot
 
@@ -26,6 +43,18 @@ templates.env.filters["money"] = fmt_money
 app = FastAPI(title="ab_console")
 app.mount("/static", StaticFiles(directory=str(_DIR / "static")), name="static")
 
+
+@dataclass(frozen=True)
+class Chrome:
+    """Top-bar + nav state shared by every page."""
+
+    nav: str
+    kill_switch_active: bool
+    alert_count: int
+
+
+# --- Sample data (a live deployment replaces these providers with real reads) --------------------
+
 _SAMPLE_SNAPSHOTS = [
     BusinessSnapshot("rocket", 1_000_000, 20_000, 50_000, 880_000, 500, "profitable"),
     BusinessSnapshot("steady", 400_000, 15_000, 30_000, 120_000, 375, "profitable"),
@@ -33,12 +62,57 @@ _SAMPLE_SNAPSHOTS = [
 ]
 _SAMPLE_CHECKS = [
     CheckResult("hog-health", CheckStatus.CRITICAL, "operating loss", business_id="hog"),
+    CheckResult("rocket-health", CheckStatus.OK, "rocket healthy (profitable)", business_id="rocket"),
 ]
 _SAMPLE_ANOMALIES = [Anomaly("hog", AnomalyKind.OPERATING_LOSS, "operating profit -30000 < floor")]
+_SAMPLE_ECON: dict[str, UnitEconomics] = {
+    s.business_id: economics(
+        UnitInputs(
+            business_id=s.business_id,
+            revenue_minor=s.revenue_minor,
+            cogs_minor=100_000,
+            ad_spend_minor=s.ad_spend_minor,
+            llm_spend_minor=s.llm_spend_minor,
+            customers=100,
+        ),
+        expected_lifetime_periods=12,
+    )
+    for s in _SAMPLE_SNAPSHOTS
+}
+_SAMPLE_EXPERIMENTS = [
+    ExperimentRow(
+        "exp-cta-1",
+        "rocket",
+        "question CTA lifts engagement",
+        "scale",
+        "significant win",
+        0.0001,
+        0.08,
+        0.04,
+        0.12,
+    ),
+    ExperimentRow(
+        "exp-price-2",
+        "hog",
+        "lower price lifts conversion",
+        "kill",
+        "CAC over ceiling",
+        0.2000,
+        0.01,
+        0.03,
+        0.04,
+    ),
+]
+_SAMPLE_AUDIT = [
+    AuditRow("dec-001", "executive.cmo_agent", 2, "autonomous_within_policy", "rocket", "2026-07-02 09:14"),
+    AuditRow("dec-002", "treasury.control_agent", 4, "approved", "hog", "2026-07-02 09:20"),
+    AuditRow("dec-003", "growth.experiment_agent", 1, "autonomous_within_policy", None, "2026-07-02 10:02"),
+]
+
+_STUB_KILLSWITCH = StubKillSwitchPort()
 
 
 def fleet_provider() -> FleetView:
-    """The live fleet view. Overridden in tests; sample data here so the page renders infra-free."""
     return fleet(
         _SAMPLE_SNAPSHOTS,
         anomalies=_SAMPLE_ANOMALIES,
@@ -47,6 +121,154 @@ def fleet_provider() -> FleetView:
     )
 
 
+def snapshots_provider() -> list[BusinessSnapshot]:
+    return _SAMPLE_SNAPSHOTS
+
+
+def econ_provider() -> dict[str, UnitEconomics]:
+    return _SAMPLE_ECON
+
+
+def checks_provider() -> list[CheckResult]:
+    return _SAMPLE_CHECKS
+
+
+def experiments_provider() -> list[ExperimentRow]:
+    return _SAMPLE_EXPERIMENTS
+
+
+def audit_provider() -> list[AuditRow]:
+    return _SAMPLE_AUDIT
+
+
+def audit_integrity_provider() -> bool:
+    return True
+
+
+def kill_switch_state_provider() -> tuple[bool, str | None]:
+    """(active, reason) — a live deployment reads the kill-switch table."""
+    return (False, None)
+
+
+def killswitch_port_provider() -> KillSwitchPort:
+    """The governed activation path. A live deployment returns HttpKillSwitchPort()."""
+    return _STUB_KILLSWITCH
+
+
+def _chrome(nav: str, view_or_state: FleetView | tuple[bool, str | None], alert_count: int) -> Chrome:
+    active = view_or_state.kill_switch_active if isinstance(view_or_state, FleetView) else view_or_state[0]
+    return Chrome(nav=nav, kill_switch_active=active, alert_count=alert_count)
+
+
+# --- Routes ----------------------------------------------------------------------------------------
+
+
 @app.get("/", response_class=HTMLResponse)
 def fleet_dashboard(request: Request, view: Annotated[FleetView, Depends(fleet_provider)]) -> HTMLResponse:
-    return templates.TemplateResponse(request, "fleet.html", {"view": view})
+    chrome = _chrome("fleet", view, view.alert_count)
+    return templates.TemplateResponse(request, "fleet.html", {"view": view, "chrome": chrome})
+
+
+@app.get("/business/{business_id}", response_class=HTMLResponse)
+def business_page(
+    request: Request,
+    business_id: str,
+    snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
+    econ: Annotated[dict[str, UnitEconomics], Depends(econ_provider)],
+    checks: Annotated[list[CheckResult], Depends(checks_provider)],
+    experiments: Annotated[list[ExperimentRow], Depends(experiments_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+) -> HTMLResponse:
+    view = business_detail(business_id, snapshots, econ, checks, experiments)
+    chrome = _chrome("fleet", ks, 0)
+    if view is None:
+        return templates.TemplateResponse(
+            request, "notfound.html", {"business_id": business_id, "chrome": chrome}, status_code=404
+        )
+    return templates.TemplateResponse(request, "business.html", {"view": view, "chrome": chrome})
+
+
+@app.get("/experiments", response_class=HTMLResponse)
+def experiments_page(
+    request: Request,
+    rows: Annotated[list[ExperimentRow], Depends(experiments_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    business_id: str | None = None,
+) -> HTMLResponse:
+    view = experiments_view(rows, business_id=business_id)
+    chrome = _chrome("experiments", ks, 0)
+    return templates.TemplateResponse(request, "experiments.html", {"view": view, "chrome": chrome})
+
+
+@app.get("/audit", response_class=HTMLResponse)
+def audit_page(
+    request: Request,
+    rows: Annotated[list[AuditRow], Depends(audit_provider)],
+    intact: Annotated[bool, Depends(audit_integrity_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    business_id: str | None = None,
+    agent_id: str | None = None,
+) -> HTMLResponse:
+    # Empty query params arrive as "" — treat them as no filter.
+    view = audit_view(
+        rows, business_id=business_id or None, agent_id=agent_id or None, integrity_intact=intact
+    )
+    chrome = _chrome("audit", ks, 0)
+    return templates.TemplateResponse(request, "audit.html", {"view": view, "chrome": chrome})
+
+
+@app.get("/killswitch", response_class=HTMLResponse)
+def killswitch_page(
+    request: Request,
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+) -> HTMLResponse:
+    view = intervention_view(kill_switch_active=ks[0], current_reason=ks[1])
+    chrome = _chrome("killswitch", ks, 0)
+    return templates.TemplateResponse(request, "killswitch.html", {"view": view, "chrome": chrome})
+
+
+@app.post("/killswitch", response_class=HTMLResponse)
+async def killswitch_activate(
+    request: Request,
+    port: Annotated[KillSwitchPort, Depends(killswitch_port_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+) -> HTMLResponse:
+    """The deliberate action: a required reason + the typed confirm phrase, then the governed port."""
+    # Parse the urlencoded body with the stdlib (no python-multipart dependency needed).
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    form = {k: v[0] for k, v in parse_qs(raw).items()}
+    scope = form.get("scope", "global")
+    target_id = form.get("target_id", "")
+    reason = form.get("reason", "")
+    confirm = form.get("confirm", "")
+    chrome = _chrome("killswitch", ks, 0)
+
+    def _render(view: object, status_code: int = 200) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request, "killswitch.html", {"view": view, "chrome": chrome}, status_code=status_code
+        )
+
+    if not reason.strip():
+        return _render(
+            intervention_view(kill_switch_active=ks[0], error="A reason is required — it is audited."),
+            status_code=400,
+        )
+    if confirm.strip() != CONFIRM_PHRASE:
+        return _render(
+            intervention_view(
+                kill_switch_active=ks[0], error=f"Type {CONFIRM_PHRASE} to confirm — this halts agents."
+            ),
+            status_code=400,
+        )
+    result = port.activate(
+        scope=scope,
+        target_id=target_id.strip() or None,
+        reason=reason.strip(),
+        activated_by="console.operator",
+    )
+    if not result.ok:
+        return _render(
+            intervention_view(kill_switch_active=ks[0], error=f"Activation failed: {result.detail}"),
+            status_code=502,
+        )
+    return _render(intervention_view(kill_switch_active=True, activated=True))

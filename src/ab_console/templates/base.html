@@ -11,22 +11,21 @@
     <span class="brand">Autonomous Business</span>
     <span class="env">console</span>
     <span class="spacer"></span>
-    {% if view.kill_switch_active %}
+    {% if chrome.kill_switch_active %}
       <span class="pill critical">kill switch active</span>
     {% else %}
       <span class="pill ok">operational</span>
     {% endif %}
-    {% if view.alert_count %}
-      <span class="pill critical">{{ view.alert_count }} alert{{ "s" if view.alert_count != 1 }}</span>
+    {% if chrome.alert_count %}
+      <span class="pill critical">{{ chrome.alert_count }} alert{{ "s" if chrome.alert_count != 1 }}</span>
     {% endif %}
   </header>
   <div class="layout">
     <nav class="side" aria-label="Primary">
-      <a href="/" aria-current="page">Fleet</a>
-      <a href="/business">Businesses</a>
-      <a href="/experiments">Experiments</a>
-      <a href="/audit">Audit</a>
-      <a href="/policy">Policy</a>
+      <a href="/" {% if chrome.nav == "fleet" %}aria-current="page"{% endif %}>Fleet</a>
+      <a href="/experiments" {% if chrome.nav == "experiments" %}aria-current="page"{% endif %}>Experiments</a>
+      <a href="/audit" {% if chrome.nav == "audit" %}aria-current="page"{% endif %}>Audit</a>
+      <a href="/killswitch" {% if chrome.nav == "killswitch" %}aria-current="page"{% endif %}>Kill switch</a>
     </nav>
     <main>
       {% block main %}{% endblock %}

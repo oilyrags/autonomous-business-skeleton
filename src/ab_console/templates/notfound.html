@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Not found{% endblock %}
+{% block main %}
+  <div class="empty">
+    <div class="big">No business called “{{ business_id }}”</div>
+    <div>It may have been sunset, or the id is mistyped. <a href="/">Back to the fleet</a>.</div>
+  </div>
+{% endblock %}

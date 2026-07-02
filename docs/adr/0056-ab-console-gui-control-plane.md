@@ -61,7 +61,28 @@ approval workflows, custom dashboards.
   rendering `templates/fleet.html` (injectable fleet provider → empty/kill-switch states testable);
   `static/console.css` design system (HIG tokens, top bar, nav, stats, pills, table, banner, empty
   state; light `prefers-color-scheme` + `prefers-reduced-motion` honored); `make console` render
-  smoke (CI) + `make console-serve`. `CONTEXT.md` + map link. 9 tests (5 view-model + 4 route).
+  smoke (CI) + `make console-serve`. `CONTEXT.md` + map link. 10 tests (5 view-model + 5 route/smoke).
+
+- **G2 (Business Detail):** pure `business_detail(business_id, snapshots, economics, checks,
+  experiments) -> BusinessView | None` — unit economics (`ab_econ`: CAC, gross margin, LTV,
+  payback), the business's own monitor checks and experiments (never another's), worst status;
+  `GET /business/{id}` renders it; an unknown id renders a calm 404 (`notfound.html`).
+- **G3 (Kill Switch / Intervention):** the deliberate control — scope options with **blast-radius
+  text**, a **required, audited reason**, and a **typed confirm phrase** (`HALT`); the POST parses
+  the form with the stdlib (no python-multipart dep) and dispatches through the **`KillSwitchPort`**
+  (stub records; `HttpKillSwitchPort` targets the real governed service at `:18002`, which persists,
+  publishes the priority event, and audits). Missing reason → 400; wrong phrase → 400; port failure
+  → 502 with a calm explanation. An integration test reaches the live service and skips without it.
+- **G4 (Experiments):** `experiment_row(exp, decision)` shapes `ab_growth` outcomes;
+  `experiments_view(rows, business_id=…)` filters; `GET /experiments` shows decision pills +
+  p-value/lift/control→variant — the evidence, legible, numbers un-hidden.
+- **G5 (Audit & Decision Explorer):** `audit_view(rows, business_id=…, agent_id=…,
+  integrity_intact=…)` — filterable decision rows (agent, authority level, approval status,
+  business deep-link) under a **hash-chain-intact** indicator; `GET /audit` with query-param filters
+  and a filter form.
+- **Chrome:** every page shares the top bar (kill-switch state + alert count) and nav with
+  `aria-current` via a `Chrome` dataclass; all providers are injectable dependencies.
+- Totals: 22 infra-free console tests + 1 skipping integration test.
 
 ## Considered: Webstudio (open-source visual builder)
 

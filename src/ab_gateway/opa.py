@@ -5,8 +5,20 @@ import httpx
 from ab_common.config import settings
 
 
-def authorize(principal: str, action: str, resource: str, purpose: str) -> bool:
-    body = {"input": {"principal": principal, "action": action, "resource": resource, "purpose": purpose}}
+def authorize(
+    principal: str, action: str, resource: str, purpose: str, business_id: str | None = None
+) -> bool:
+    # business_id is part of the policy input (VULN-002) so the rego policy — not just the code —
+    # can bind an agent to the tenants it may act for.
+    body = {
+        "input": {
+            "principal": principal,
+            "action": action,
+            "resource": resource,
+            "purpose": purpose,
+            "business_id": business_id,
+        }
+    }
     resp = httpx.post(f"{settings.opa_url}/v1/data/ab/authz/allow", json=body, timeout=5.0)
     resp.raise_for_status()
     return resp.json().get("result") is True

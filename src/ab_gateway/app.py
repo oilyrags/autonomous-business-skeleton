@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from ab_audit import store as audit
 from ab_common import bus, db
 from ab_common.config import settings
-from ab_gateway import model_gateway, opa, tools
+from ab_gateway import authz, model_gateway, opa, tools
 from ab_identity import revocation
 from ab_identity.tokens import InvalidToken, validate_token
 from ab_killswitch import state
@@ -102,9 +102,17 @@ def tool_call(
     # 3. Reason via the (stub) model — boundary exercised, output not used for the decision.
     model_gateway.complete("executive_reasoning", f"about to {req.tool} for {resource}")
 
-    # 4. Authorize (default-deny).
-    if not opa.authorize(principal, req.tool, resource, req.purpose):
+    # 4. Authorize (default-deny). business_id is in the policy input so the policy can bind an
+    #    agent to its tenants (VULN-002).
+    business_id = req.args.get("business_id")
+    business_id = str(business_id) if business_id is not None else None
+    if not opa.authorize(principal, req.tool, resource, req.purpose, business_id):
         return _deny(principal, req.tool, resource, "not authorized by policy", 403)
+
+    # 4a. Tenant binding (defense in depth, alongside the policy): an agent may not act for a
+    #     business it doesn't serve — enforced here for every tool, and again in the money path.
+    if business_id is not None and not authz.serves_business(principal, business_id):
+        return _deny(principal, req.tool, resource, f"not authorized for business '{business_id}'", 403)
 
     # 5. Resolve the tool against the registry (unregistered tools are uncallable).
     spec = tools.get(req.tool)
@@ -145,9 +153,15 @@ def tool_call(
             subject_ref=SubjectRef(type="Decision", id=decision_id),
             decision_id=decision_id,
             agent_id=principal,
-            authority_level=int(req.args.get("authority_level", 0)),
-            approval_status=ApprovalStatus(req.args.get("approval_status", "autonomous_within_policy")),
-            business_id=req.args.get("business_id"),
+            # Clamp the self-asserted governance metadata (VULN-003): the authority the agent may
+            # claim is capped at its ceiling, and it can never emit a human-approval status.
+            authority_level=min(int(req.args.get("authority_level", 0)), authz.authority_ceiling(principal)),
+            approval_status=ApprovalStatus(
+                authz.sanitize_approval_status(
+                    str(req.args.get("approval_status", "autonomous_within_policy"))
+                )
+            ),
+            business_id=business_id,
         )
         bus.publish(settings.decision_topic, key=decision_id, value=event.model_dump_json(by_alias=True))
 

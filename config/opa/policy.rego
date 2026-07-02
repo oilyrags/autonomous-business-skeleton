@@ -22,7 +22,27 @@ allow if {
 
 # Slice 30: the skeleton agent may initiate payments. Policy authorizes the capability; the
 # ledger still enforces the cap, maker-checker, and payee allow-list (deterministic money path).
+# VULN-002: the input carries business_id so the policy can bind an agent to its tenants. The
+# skeleton's executive operator acts portfolio-wide; `agent_businesses` scopes narrower principals.
 allow if {
 	input.action == "payments.transfer"
 	input.principal == "executive.cmo_agent"
+	principal_serves_business
 }
+
+# A principal may act when the call is not business-scoped (business_id null), for any business if
+# portfolio-wide ("*"), or for a business explicitly granted to it.
+principal_serves_business if input.business_id == null
+
+principal_serves_business if {
+	some b in agent_businesses[input.principal]
+	b == "*"
+}
+
+principal_serves_business if {
+	some b in agent_businesses[input.principal]
+	b == input.business_id
+}
+
+# Per-principal tenant grants (mirror ab_gateway/authz.py; a real deployment loads this as OPA data).
+agent_businesses := {"executive.cmo_agent": ["*"]}

@@ -20,6 +20,7 @@ from ab_common.config import settings
 from ab_compliance.ropa import check as ropa_check
 from ab_factory import core as factory_core
 from ab_factory import store as factory_store
+from ab_gateway import authz
 from ab_killswitch import state as killswitch
 from ab_ledger import store as ledger_store
 from ab_ledger.core import LedgerError, Posting, Transaction
@@ -61,22 +62,37 @@ class ToolSpec:
 
 
 def write_decision(principal: str, args: dict[str, Any]) -> str:
-    """Persist a Decision; return its id. Idempotent on decision_id."""
+    """Persist a Decision; return its id. Idempotent on decision_id.
+
+    VULN-002/003: the agent may not write a decision scoped to a business it doesn't serve, may not
+    claim an authority_level above its ceiling, and may not self-assert a human-approval status."""
     d = DecisionWrite.model_validate(args)
+    if d.business_id is not None and not authz.serves_business(principal, d.business_id):
+        raise ToolDenied(f"'{principal}' is not authorized for business '{d.business_id}'", status=403)
+    if authz.exceeds_authority(principal, d.authority_level):
+        raise ToolDenied(
+            f"declared authority_level {d.authority_level} exceeds '{principal}' ceiling "
+            f"{authz.authority_ceiling(principal)}",
+            status=403,
+        )
+    approval_status = authz.sanitize_approval_status(d.approval_status)  # agents never self-approve
     with db.connect() as conn:
         conn.execute(
             "INSERT INTO decisions "
             "(decision_id, title, agent_id, authority_level, approval_status, business_id) "
             "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (decision_id) DO NOTHING",
-            (d.decision_id, d.title, principal, d.authority_level, d.approval_status, d.business_id),
+            (d.decision_id, d.title, principal, d.authority_level, approval_status, d.business_id),
         )
         conn.commit()
     return d.decision_id
 
 
-def _gate_business_spend(business_id: str, amount_minor: int) -> str:
-    """Factory gate for a business-scoped payment: the business must exist, be launch-ready
-    right now (live re-check), and afford the amount. Returns the account to debit (its cash)."""
+def _gate_business_spend(principal: str, business_id: str, amount_minor: int) -> str:
+    """Factory gate for a business-scoped payment: the calling principal must be authorized for the
+    business (VULN-002 — no cross-tenant spend), and the business must exist, be launch-ready right
+    now (live re-check), and afford the amount. Returns the account to debit (its cash)."""
+    if not authz.serves_business(principal, business_id):
+        raise ToolDenied(f"'{principal}' is not authorized for business '{business_id}'", status=403)
     business = factory_store.get(business_id)
     if business is None:
         raise ToolDenied(f"unknown business '{business_id}'", status=400)
@@ -154,7 +170,7 @@ def transfer_payment(principal: str, args: dict[str, Any]) -> str:
         raise ToolDenied(f"invalid payment args: {exc.error_count()} error(s)", status=400) from exc
     from_account = p.from_account
     if p.business_id is not None:  # business-scoped: gate through the Factory, spend its own cash
-        from_account = _gate_business_spend(p.business_id, p.amount_minor)
+        from_account = _gate_business_spend(principal, p.business_id, p.amount_minor)
     txn = Transaction(
         txn_id=f"txn_{uuid4().hex[:12]}",
         idempotency_key=p.idempotency_key,

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qs
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -41,6 +41,8 @@ from ab_console.viewmodels import (
 )
 from ab_econ.core import UnitEconomics, UnitInputs, economics
 from ab_monitor.check import CheckResult, CheckStatus
+from ab_monitor.prometheus import CONTENT_TYPE as PROMETHEUS_CONTENT_TYPE
+from ab_monitor.prometheus import exposition
 from ab_obs.core import Anomaly, AnomalyKind, BusinessSnapshot
 
 _DIR = Path(__file__).parent
@@ -396,3 +398,13 @@ async def decisions_act(
         return _render(decisions_view(pending, error=outcome.detail), status_code=502)
     remaining = [d for d in pending if d.decision_id != decision_id]
     return _render(decisions_view(remaining, acted=outcome.detail))
+
+
+@app.get("/metrics")
+def metrics(
+    checks: Annotated[list[CheckResult], Depends(checks_provider)],
+    snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
+) -> Response:
+    """Prometheus scrape target: the same checks + business reads, as gauges (M5). One definition
+    per signal — Nagios and Prometheus both consume the deterministic ab_monitor/ab_obs sources."""
+    return Response(content=exposition(checks, snapshots), media_type=PROMETHEUS_CONTENT_TYPE)

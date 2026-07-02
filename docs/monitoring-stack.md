@@ -40,8 +40,31 @@ Because the port emits the vendor-neutral Nagios plugin protocol, the classic-Na
 submits the same `CheckResult`s via **NSCA** behind the same `NagiosExporter` port — implement an
 `NscaExporter` and pass it wherever `Icinga2RestExporter` is used; nothing else changes.
 
-## Deferred (M5)
+## M5 — metrics, dashboards, alert routing
 
-The modern observability layer — Prometheus `/metrics` + OpenTelemetry instrumentation on the
-services, Grafana dashboards, Alertmanager + SLO burn-rate routing — is planned on top of the same
-checks (`.scratch/monitoring/M5-observability-stack.md`), so there is one definition per signal.
+The same deterministic checks and business reads feed Prometheus (one definition per signal, two
+consumers):
+
+- **`/metrics` on the console** (`http://localhost:8600/metrics`) — a pure, hand-rolled Prometheus
+  text exposition (`ab_monitor/prometheus.py`; no `prometheus-client` dependency): every check as
+  `ab_check_status` (+ perfdata and warn/crit thresholds as series) and per-business economics
+  (`ab_business_*`, `ab_fleet_*`), all tagged `business_id`.
+- **Version-controlled config** under `monitoring/`: Prometheus scrape + **SLO burn-rate rules**
+  (`ab:error_budget_burn:ratio` from the `ab_ops` error-budget perfdata; `ErrorBudgetBurnHigh`,
+  `CheckCritical`, `BusinessUnprofitable` alerts with runbook links), Alertmanager routing (grouped
+  by `alertname` + `business_id`; wire your pager in `alertmanager.yml`), and a provisioned Grafana
+  **Fleet Overview** dashboard (`monitoring/grafana/dashboards/fleet-overview.json`).
+- **Bring it up** (with the Icinga2 profile or standalone):
+
+```
+GRAFANA_ADMIN_PASSWORD=changeme ICINGA2_API_PASSWORD=changeme ICINGAWEB2_ADMIN_PASSWORD=changeme \
+  docker compose -f docker-compose.monitoring.yml up -d
+make console-serve   # the scrape target
+```
+
+Prometheus: `http://localhost:9090` · Grafana: `http://localhost:3000` · Alertmanager: `http://localhost:9093`.
+
+**OpenTelemetry SDK instrumentation is deliberately deferred**: it would add several
+`opentelemetry-*` dependencies to every service for tracing we don't yet consume; the event
+envelope already carries `trace_id` for correlation. Revisit when a tracing backend is actually
+operated.

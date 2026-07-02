@@ -77,3 +77,14 @@ Full detail: PRD 0005; issues in `.scratch/monitoring/`.
   network submit skips. `docker-compose.monitoring.yml` (Icinga2 + Icinga Web, secrets via env);
   `python -m ab_monitor.submit` / `make monitor-submit`; an integration test that skips fast without
   the profile. `docs/monitoring-stack.md`. 4 unit tests + 1 (skipping) integration test.
+
+- **M5 (metrics + dashboards + alerting):** pure Prometheus text exposition
+  (`ab_monitor/prometheus.py` — hand-rolled, no `prometheus-client`): checks as `ab_check_status` +
+  perfdata/threshold series, business economics as `ab_business_*`/`ab_fleet_*` gauges, all
+  `business_id`-tagged; served at the console's `/metrics`. Version-controlled `monitoring/` config:
+  Prometheus scrape + SLO **burn-rate** recording/alerting rules (from the `ab_ops` error-budget
+  perfdata), Alertmanager routing grouped by business, provisioned Grafana Fleet Overview dashboard;
+  compose profile gains prometheus/grafana/alertmanager. **OTel SDK deferred with rationale**
+  (dependency footprint in every service for tracing not yet consumed; envelope `trace_id` already
+  enables correlation). 5 renderer tests + a `/metrics` route test.
+

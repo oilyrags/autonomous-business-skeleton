@@ -1,0 +1,34 @@
+# SLO burn-rate over the ab_monitor perfdata (the ab_ops error budget is the crit threshold) —
+# alert on budget burn, not raw thresholds. Plus a catch-all on any CRITICAL check.
+groups:
+  - name: ab-slo
+    rules:
+      - record: ab:error_budget_burn:ratio
+        expr: >
+          ab_check_perfdata{label="errors"}
+          / on(check, label) ab_check_perfdata_crit{label="errors"}
+      - alert: ErrorBudgetBurnHigh
+        expr: ab:error_budget_burn:ratio > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Error budget burn high on {{ $labels.check }}"
+          description: "{{ $value | humanizePercentage }} of the error budget is burned."
+          runbook_url: "https://github.com/oilyrags/autonomous-business-skeleton/blob/main/docs/monitoring-stack.md"
+      - alert: CheckCritical
+        expr: ab_check_status >= 2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Check {{ $labels.check }} is CRITICAL{{ if $labels.business_id }} (business {{ $labels.business_id }}){{ end }}"
+          description: "A deterministic ab_monitor check breached its critical threshold."
+      - alert: BusinessUnprofitable
+        expr: ab_business_operating_profit_minor < -10000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Business {{ $labels.business_id }} is losing money"
+          description: "Operating profit {{ $value }} minor units — below the -10000 floor."

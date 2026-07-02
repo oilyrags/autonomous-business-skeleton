@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: ab-dashboards
+    folder: Autonomous Business
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

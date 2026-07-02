@@ -1,0 +1,17 @@
+# Alertmanager routing (M5): dedup + grouping; per-business grouping keeps one bleeding business
+# from paging as ten alerts. Receivers are placeholders — point them at Slack/PagerDuty/webhooks.
+route:
+  receiver: default
+  group_by: ["alertname", "business_id"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"']
+      receiver: critical
+
+receivers:
+  - name: default
+  - name: critical
+    # webhook_configs:
+    #   - url: "https://example.internal/oncall-webhook"   # wire your pager here

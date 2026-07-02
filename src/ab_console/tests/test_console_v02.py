@@ -108,3 +108,13 @@ def test_unknown_decision_or_action_is_a_400(client: TestClient) -> None:
         client.post("/decisions/act", data={"decision_id": "pend-201", "action": "explode"}).status_code
         == 400
     )
+
+
+def test_metrics_endpoint_serves_prometheus_gauges(client: TestClient) -> None:
+    resp = client.get("/metrics")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/plain; version=0.0.4")
+    body = resp.text
+    assert 'ab_check_status{check="hog-health",business_id="hog"} 2' in body  # CRITICAL
+    assert 'ab_business_operating_profit_minor{business_id="hog"} -30000' in body
+    assert "ab_fleet_businesses 3" in body

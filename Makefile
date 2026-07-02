@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth factory portfolio econ llm-budget loop revenue ads mvp sales obs playbook memory org sandbox social monitor monitor-submit console console-serve demo-lite demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth factory portfolio econ llm-budget loop revenue ads mvp sales obs playbook memory org sandbox social monitor monitor-submit console console-serve inboxiq demo-lite demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
 
 # Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
 # and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
@@ -157,6 +157,9 @@ console-serve: ## run the console locally (http://localhost:8600)
 
 demo-lite:   ## the 60-second story, no infra: growth -> portfolio -> loop -> social -> monitor -> console
 	PYTHONPATH=src uv run python -m abctl demo
+
+inboxiq:     ## the worked example — one B2B SaaS end to end through every context, no infra
+	PYTHONPATH=src uv run python -m ab_examples
 
 factory:     ## business factory demo — provision + readiness-gate businesses (per business_id)
 	PYTHONPATH=src uv run python -m ab_factory

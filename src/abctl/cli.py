@@ -33,6 +33,7 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "sandbox": ("ab_sandbox.__main__", "tool capability policy + audit"),
     "monitor": ("ab_monitor.__main__", "deterministic checks as Nagios plugin results"),
     "console": ("ab_console.__main__", "render the control-plane Fleet Dashboard (smoke)"),
+    "inboxiq": ("ab_examples.inboxiq", "the worked example: one B2B SaaS through every context"),
 }
 
 # The 60-second story: money loop, marketing loop, then watch + steer it.

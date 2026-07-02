@@ -68,6 +68,8 @@ jobs:
         run: make console
       - name: Quickstart story (abctl demo, no infra)
         run: make demo-lite
+      - name: InboxIQ worked example (one business, every context)
+        run: make inboxiq
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

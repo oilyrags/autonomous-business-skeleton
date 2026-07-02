@@ -17,6 +17,11 @@ Licensed under [Apache 2.0](LICENSE).
 Every demo is also addressable through one CLI: `./abctl --help`
 (`./abctl demo` = tier 1; `./abctl loop`, `./abctl social`, `./abctl monitor`, … for single acts).
 
+**The worked example:** `./abctl inboxiq` runs one fictional B2B SaaS end to end through every
+context — Factory provision → MVP → marketing → ads → experiments → sales → revenue → economics →
+portfolio → monitoring — on the in-memory ledger, profitable, capital-allocated, and balanced to
+the cent (`src/ab_examples/inboxiq.py`).
+
 ## The control plane
 
 The console (`make console-serve`, [guide](docs/console.md)) — fleet health with profit sparklines,

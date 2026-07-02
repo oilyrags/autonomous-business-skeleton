@@ -82,6 +82,9 @@ _Avoid_: MVP, prototype, spike (those imply throwaway or scope, not a load-beari
 - [ab_schemas](./src/ab_schemas/CONTEXT.md) — shared kernel: domain-event models + tool-arg schemas
 - [ab_common](./src/ab_common/CONTEXT.md) — shared infrastructure (Postgres, bus, config, secrets)
 
+### Examples (not bounded contexts)
+- [ab_examples](./src/ab_examples/CONTEXT.md) — worked examples composing the contexts end to end (`inboxiq`)
+
 ## Relationships
 
 - **ab_gateway governs all tool use** — every agent action routes through it (policy, determinism

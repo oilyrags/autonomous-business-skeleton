@@ -76,6 +76,7 @@ _Avoid_: MVP, prototype, spike (those imply throwaway or scope, not a load-beari
 
 ### Reliability & shared
 - [ab_ops](./src/ab_ops/CONTEXT.md) — reliability: incidents, error budgets, rollback
+- [ab_monitor](./src/ab_monitor/CONTEXT.md) — Nagios monitoring: existing signals → plugin check results
 - [ab_failsim](./src/ab_failsim/CONTEXT.md) — the failure-injection scenario suite
 - [ab_schemas](./src/ab_schemas/CONTEXT.md) — shared kernel: domain-event models + tool-arg schemas
 - [ab_common](./src/ab_common/CONTEXT.md) — shared infrastructure (Postgres, bus, config, secrets)

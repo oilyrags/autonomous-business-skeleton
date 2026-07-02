@@ -54,3 +54,12 @@ demo. Deferred infra phases (need the mesh): the compose monitoring profile + a 
 then Prometheus/OTel instrumentation + Grafana dashboards + Alertmanager/SLO burn-rate alerting.
 
 Full detail: PRD 0005; issues in `.scratch/monitoring/`.
+
+## Shipped
+
+- **M1 (tracer bullet):** `CheckStatus` (0/1/2/3), `Perfdatum` + `CheckResult.render()` (Nagios plugin
+  line `STATUS: output | label=value;warn;crit`), a `Check` registry + `run_all`; evaluators
+  reusing existing signals — `service_check` (health), `cert_expiry_check` (mTLS), `slo_burn_check`
+  (reuses `ab_ops.ErrorBudget`); `NagiosExporter` port + `StubNagiosExporter` + `render_all`.
+  `make monitor` emits the suite as Nagios plugin lines. `src/ab_monitor/CONTEXT.md` created + linked
+  from `CONTEXT-MAP.md`. 7 pure tests.

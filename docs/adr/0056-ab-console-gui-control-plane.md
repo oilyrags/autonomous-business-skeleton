@@ -84,6 +84,16 @@ approval workflows, custom dashboards.
   `aria-current` via a `Chrome` dataclass; all providers are injectable dependencies.
 - Totals: 22 infra-free console tests + 1 skipping integration test.
 
+- **v0.2 (review response — command center):** **KPI sparklines** on the fleet rows (pure
+  `sparkline_points` → inline SVG polyline, no chart library; profit-colored, aria-labelled);
+  **Live feed** (`/feed` + `/events/stream`) — Server-Sent Events consumed by the browser's native
+  `EventSource` (zero client framework/toolchain); the event source is an injectable provider (stub
+  replays samples and ends; live = a bus consumer on the same seam); **Decision OS workspace**
+  (`/decisions`) — the pending high-stakes queue, highest authority first, with evidence (kind,
+  maker, amount, business link) and approve/reject through an **`ApprovalPort`** (stub records; a
+  gateway-backed adapter lands with the backend approval queue) — a rejection requires an audited
+  note; 400/400/502 error paths. Nav gains Decisions + Live feed. 11 new tests (33 console total).
+
 ## Considered: Webstudio (open-source visual builder)
 
 Offered by the owner as a possible accelerator. Declined for the console: Webstudio is a

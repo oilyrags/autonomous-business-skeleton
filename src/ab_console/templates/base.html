@@ -23,6 +23,8 @@
   <div class="layout">
     <nav class="side" aria-label="Primary">
       <a href="/" {% if chrome.nav == "fleet" %}aria-current="page"{% endif %}>Fleet</a>
+      <a href="/decisions" {% if chrome.nav == "decisions" %}aria-current="page"{% endif %}>Decisions</a>
+      <a href="/feed" {% if chrome.nav == "feed" %}aria-current="page"{% endif %}>Live feed</a>
       <a href="/experiments" {% if chrome.nav == "experiments" %}aria-current="page"{% endif %}>Experiments</a>
       <a href="/audit" {% if chrome.nav == "audit" %}aria-current="page"{% endif %}>Audit</a>
       <a href="/killswitch" {% if chrome.nav == "killswitch" %}aria-current="page"{% endif %}>Kill switch</a>

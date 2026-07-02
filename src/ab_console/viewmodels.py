@@ -5,7 +5,7 @@ the domain and the UI. Money is formatted from integer minor units; nothing here
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from ab_econ.core import UnitEconomics
@@ -29,6 +29,7 @@ class FleetRow:
     verdict: str
     operating_profit_minor: int
     status: str  # worst monitoring status for this business (OK/WARNING/CRITICAL/UNKNOWN)
+    trend: tuple[int, ...] = ()  # recent profit history for the sparkline (oldest first)
 
 
 @dataclass(frozen=True)
@@ -57,8 +58,10 @@ def fleet(
     checks: list[CheckResult],
     kill_switch_active: bool,
     kill_switch_reason: str | None = None,
+    history: Mapping[str, Sequence[int]] | None = None,
 ) -> FleetView:
-    """Build the Fleet Dashboard view — totals + per-business rows (attention first) + alert count."""
+    """Build the Fleet Dashboard view — totals + per-business rows (attention first) + alert count.
+    ``history`` maps business_id → recent profit series for the row's sparkline."""
     totals: FleetTotals = fleet_totals(snapshots)
     rows = [
         FleetRow(
@@ -66,6 +69,7 @@ def fleet(
             verdict=s.verdict,
             operating_profit_minor=s.operating_profit_minor,
             status=_worst_status(checks, s.business_id),
+            trend=tuple((history or {}).get(s.business_id, ())),
         )
         for s in snapshots
     ]
@@ -249,3 +253,51 @@ def intervention_view(
         error=error,
         activated=activated,
     )
+
+
+# --- v0.2: KPI sparklines (inline SVG — no chart library) -----------------------------------------
+
+
+def sparkline_points(values: Sequence[int], *, width: int = 120, height: int = 28, pad: int = 2) -> str:
+    """SVG polyline points for a KPI trend, normalized to the value range. Deterministic; empty
+    string when there aren't two points to draw."""
+    if len(values) < 2:
+        return ""
+    lo, hi = min(values), max(values)
+    span = (hi - lo) or 1
+    step = (width - 2 * pad) / (len(values) - 1)
+    points = []
+    for i, v in enumerate(values):
+        x = pad + i * step
+        y = pad + (height - 2 * pad) * (1 - (v - lo) / span)
+        points.append(f"{x:.1f},{y:.1f}")
+    return " ".join(points)
+
+
+# --- v0.2: Decision OS workspace (pending approvals) ----------------------------------------------
+
+
+@dataclass(frozen=True)
+class PendingDecision:
+    decision_id: str
+    kind: str  # e.g. payment | reallocation | publish
+    summary: str
+    amount_minor: int | None
+    maker: str
+    required_level: int
+    business_id: str | None
+
+
+@dataclass(frozen=True)
+class DecisionsView:
+    pending: list[PendingDecision]
+    acted: str | None = None  # "approved <id>" / "rejected <id>" confirmation
+    error: str | None = None
+
+
+def decisions_view(
+    pending: list[PendingDecision], *, acted: str | None = None, error: str | None = None
+) -> DecisionsView:
+    """The approval queue, highest-authority first — the human-in-the-loop workspace."""
+    ordered = sorted(pending, key=lambda d: (-d.required_level, d.decision_id))
+    return DecisionsView(pending=ordered, acted=acted, error=error)

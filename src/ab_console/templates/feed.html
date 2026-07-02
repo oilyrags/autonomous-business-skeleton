@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Live feed{% endblock %}
+{% block main %}
+  <h1>Live feed</h1>
+  <p class="subtle">Domain events as they happen on the bus — decisions, experiments, money, content.</p>
+
+  <div class="card">
+    <h2>Events <span class="pill ok" id="feed-state">connecting…</span></h2>
+    <table aria-live="polite">
+      <thead>
+        <tr><th scope="col">Event</th><th scope="col">Business</th><th scope="col">Detail</th></tr>
+      </thead>
+      <tbody id="feed-rows">
+        <tr id="feed-empty"><td colspan="3" class="empty">Waiting for events…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // Native EventSource — no client framework. The server streams SSE from the bus (stub replays
+    // sample events in dev). Each frame is one domain event rendered as a row, newest first.
+    const rows = document.getElementById("feed-rows");
+    const state = document.getElementById("feed-state");
+    const es = new EventSource("/events/stream");
+    es.onopen = () => { state.textContent = "live"; };
+    es.onmessage = (msg) => {
+      const e = JSON.parse(msg.data);
+      document.getElementById("feed-empty")?.remove();
+      const tr = document.createElement("tr");
+      const detail = Object.entries(e)
+        .filter(([k]) => !["eventName", "businessId"].includes(k))
+        .map(([k, v]) => `${k}=${v}`).join("  ");
+      for (const text of [e.eventName, e.businessId ?? "–", detail]) {
+        const td = document.createElement("td");
+        td.textContent = text;
+        tr.appendChild(td);
+      }
+      rows.prepend(tr);
+    };
+    es.onerror = () => { state.textContent = "stream ended"; state.classList.remove("ok"); es.close(); };
+  </script>
+{% endblock %}

@@ -32,6 +32,7 @@
       <table>
         <thead>
           <tr><th scope="col">Business</th><th scope="col">Verdict</th>
+              <th scope="col">Trend</th>
               <th scope="col" class="num">Operating profit</th><th scope="col">Health</th></tr>
         </thead>
         <tbody>
@@ -39,6 +40,16 @@
             <tr>
               <td><a href="/business/{{ row.business_id }}">{{ row.business_id }}</a></td>
               <td>{{ row.verdict }}</td>
+              <td>
+                {% set pts = row.trend | spark %}
+                {% if pts %}
+                  <svg width="120" height="28" viewBox="0 0 120 28" role="img"
+                       aria-label="profit trend for {{ row.business_id }}"
+                       style="color: {{ 'var(--crit)' if row.operating_profit_minor < 0 else 'var(--ok)' }};">
+                    <polyline points="{{ pts }}" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                  </svg>
+                {% else %}<span class="subtle">–</span>{% endif %}
+              </td>
               <td class="num {{ 'neg' if row.operating_profit_minor < 0 }}">{{ row.operating_profit_minor | money }}</td>
               <td><span class="pill {{ row.status | lower }}">{{ row.status }}</span></td>
             </tr>

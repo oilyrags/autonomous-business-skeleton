@@ -21,6 +21,8 @@ outcomes, and the `decisions` table.
 |---|---|
 | `/` | **Fleet Dashboard** — totals, per-business health rows (attention first), alerts, kill-switch state |
 | `/business/<id>` | **Business Detail** — unit economics (CAC, margin, LTV, payback), its checks, its experiments |
+| `/decisions` | **Decision OS workspace** — pending high-stakes decisions (authority-first) with evidence; approve/reject through the governed `ApprovalPort` (note required to reject, audited) |
+| `/feed` | **Live feed** — domain events streamed over SSE (native `EventSource`; stub replays samples, live = bus consumer) |
 | `/experiments` | **Experiments** — decisions with the statistics visible (p-value, lift, control→variant); `?business_id=` filters |
 | `/audit` | **Audit & Decision Explorer** — filterable decisions (agent, authority L0–L5, approval), hash-chain-intact indicator |
 | `/killswitch` | **Kill Switch** — deliberate halt: blast-radius scopes, required audited reason, typed `HALT` confirm |

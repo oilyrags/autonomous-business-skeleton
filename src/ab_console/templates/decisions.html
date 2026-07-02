@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Decisions{% endblock %}
+{% block main %}
+  <h1>Decisions</h1>
+  <p class="subtle">Pending high-stakes decisions awaiting a human — highest authority first. Every action is audited.</p>
+
+  {% if view.acted %}
+    <div class="banner" style="background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent);" role="status">
+      {{ view.acted }}
+    </div>
+  {% endif %}
+  {% if view.error %}
+    <div class="banner" role="alert">{{ view.error }}</div>
+  {% endif %}
+
+  {% if view.pending %}
+    {% for d in view.pending %}
+      <div class="card" style="margin-bottom: 16px; padding: 18px;">
+        <div style="display: flex; align-items: baseline; gap: 12px;">
+          <strong>{{ d.summary }}</strong>
+          <span class="pill warning">L{{ d.required_level }}</span>
+          <span class="spacer" style="flex: 1;"></span>
+          <span style="font-size: 13px; color: var(--fg-3);">{{ d.decision_id }}</span>
+        </div>
+        <div style="font-size: 13px; color: var(--fg-2); margin: 8px 0 14px;">
+          {{ d.kind }} · proposed by {{ d.maker }}
+          {% if d.amount_minor is not none %} · <strong>{{ d.amount_minor | money }}</strong>{% endif %}
+          {% if d.business_id %} · <a href="/business/{{ d.business_id }}">{{ d.business_id }}</a>{% endif %}
+        </div>
+        <form method="post" action="/decisions/act" style="display: flex; gap: 10px; align-items: center;">
+          <input type="hidden" name="decision_id" value="{{ d.decision_id }}">
+          <input name="note" placeholder="note (audited; required to reject)" aria-label="Decision note"
+                 style="flex: 1; background: var(--bg-raised); color: var(--fg); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 10px;">
+          <button type="submit" name="action" value="approve"
+                  style="background: var(--accent); color: white; border: 0; border-radius: 8px; padding: 8px 16px; font-weight: 500; cursor: pointer;">Approve</button>
+          <button type="submit" name="action" value="reject"
+                  style="background: var(--bg-raised); color: var(--crit); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 16px; font-weight: 500; cursor: pointer;">Reject</button>
+        </form>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      <div class="big">Nothing awaits you</div>
+      <div>Agents are operating within policy. High-stakes decisions will queue here.</div>
+    </div>
+  {% endif %}
+{% endblock %}

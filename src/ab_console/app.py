@@ -15,22 +15,27 @@ from typing import Annotated
 from urllib.parse import parse_qs
 
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from ab_console.approvals import ApprovalPort, StubApprovalPort
 from ab_console.killswitch_port import KillSwitchPort, StubKillSwitchPort
+from ab_console.stream import SAMPLE_EVENTS, sse_format
 from ab_console.viewmodels import (
     CONFIRM_PHRASE,
     AuditRow,
     ExperimentRow,
     FleetView,
+    PendingDecision,
     audit_view,
     business_detail,
+    decisions_view,
     experiments_view,
     fleet,
     fmt_money,
     intervention_view,
+    sparkline_points,
 )
 from ab_econ.core import UnitEconomics, UnitInputs, economics
 from ab_monitor.check import CheckResult, CheckStatus
@@ -39,6 +44,7 @@ from ab_obs.core import Anomaly, AnomalyKind, BusinessSnapshot
 _DIR = Path(__file__).parent
 templates = Jinja2Templates(directory=str(_DIR / "templates"))
 templates.env.filters["money"] = fmt_money
+templates.env.filters["spark"] = sparkline_points
 
 app = FastAPI(title="ab_console")
 app.mount("/static", StaticFiles(directory=str(_DIR / "static")), name="static")
@@ -109,7 +115,34 @@ _SAMPLE_AUDIT = [
     AuditRow("dec-003", "growth.experiment_agent", 1, "autonomous_within_policy", None, "2026-07-02 10:02"),
 ]
 
+_SAMPLE_HISTORY = {  # recent operating-profit series (oldest first) for the sparklines
+    "rocket": (520_000, 610_000, 590_000, 700_000, 810_000, 880_000),
+    "steady": (90_000, 100_000, 110_000, 105_000, 118_000, 120_000),
+    "hog": (40_000, 25_000, 10_000, -5_000, -18_000, -30_000),
+}
+_SAMPLE_PENDING = [
+    PendingDecision(
+        "pend-201",
+        "payment",
+        "Pay supplier invoice over the cap",
+        150_000,
+        "executive.cmo_agent",
+        4,
+        "rocket",
+    ),
+    PendingDecision(
+        "pend-202",
+        "reallocation",
+        "Sunset 'sinker' and reclaim its capital",
+        200_000,
+        "executive.portfolio_agent",
+        5,
+        "sinker",
+    ),
+]
+
 _STUB_KILLSWITCH = StubKillSwitchPort()
+_STUB_APPROVALS = StubApprovalPort()
 
 
 def fleet_provider() -> FleetView:
@@ -118,6 +151,7 @@ def fleet_provider() -> FleetView:
         anomalies=_SAMPLE_ANOMALIES,
         checks=_SAMPLE_CHECKS,
         kill_switch_active=False,
+        history=_SAMPLE_HISTORY,
     )
 
 
@@ -272,3 +306,89 @@ async def killswitch_activate(
             status_code=502,
         )
     return _render(intervention_view(kill_switch_active=True, activated=True))
+
+
+# --- v0.2: live feed + decision workspace ----------------------------------------------------------
+
+
+def decision_events_provider() -> list[dict[str, object]]:
+    """The event stream's source. Stub replays samples (and ends); live = a bus consumer."""
+    return SAMPLE_EVENTS
+
+
+def pending_decisions_provider() -> list[PendingDecision]:
+    return _SAMPLE_PENDING
+
+
+def approval_port_provider() -> ApprovalPort:
+    """The governed approve/reject path. A gateway-backed adapter replaces this in a live deploy."""
+    return _STUB_APPROVALS
+
+
+@app.get("/events/stream")
+def events_stream(
+    events: Annotated[list[dict[str, object]], Depends(decision_events_provider)],
+) -> StreamingResponse:
+    """Server-Sent Events for the live feed — consumed by the browser's native EventSource."""
+    return StreamingResponse(sse_format(events), media_type="text/event-stream")
+
+
+@app.get("/feed", response_class=HTMLResponse)
+def feed_page(
+    request: Request,
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+) -> HTMLResponse:
+    chrome = _chrome("feed", ks, 0)
+    return templates.TemplateResponse(request, "feed.html", {"chrome": chrome})
+
+
+@app.get("/decisions", response_class=HTMLResponse)
+def decisions_page(
+    request: Request,
+    pending: Annotated[list[PendingDecision], Depends(pending_decisions_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+) -> HTMLResponse:
+    chrome = _chrome("decisions", ks, 0)
+    return templates.TemplateResponse(
+        request, "decisions.html", {"view": decisions_view(pending), "chrome": chrome}
+    )
+
+
+@app.post("/decisions/act", response_class=HTMLResponse)
+async def decisions_act(
+    request: Request,
+    pending: Annotated[list[PendingDecision], Depends(pending_decisions_provider)],
+    port: Annotated[ApprovalPort, Depends(approval_port_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+) -> HTMLResponse:
+    """Approve or reject a pending decision through the governed port. A rejection needs a note."""
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    form = {k: v[0] for k, v in parse_qs(raw).items()}
+    decision_id = form.get("decision_id", "")
+    action = form.get("action", "")
+    note = form.get("note", "").strip()
+    chrome = _chrome("decisions", ks, 0)
+
+    def _render(view: object, status_code: int = 200) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request, "decisions.html", {"view": view, "chrome": chrome}, status_code=status_code
+        )
+
+    known = {d.decision_id for d in pending}
+    if decision_id not in known or action not in ("approve", "reject"):
+        return _render(decisions_view(pending, error="Unknown decision or action."), status_code=400)
+    if action == "reject" and not note:
+        return _render(
+            decisions_view(pending, error="A note is required to reject — it is audited."),
+            status_code=400,
+        )
+    actor = "console.operator"
+    outcome = (
+        port.approve(decision_id, actor=actor, note=note)
+        if action == "approve"
+        else port.reject(decision_id, actor=actor, note=note)
+    )
+    if not outcome.ok:
+        return _render(decisions_view(pending, error=outcome.detail), status_code=502)
+    remaining = [d for d in pending if d.decision_id != decision_id]
+    return _render(decisions_view(remaining, acted=outcome.detail))

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Fleet{% endblock %}
+{% block main %}
+  <h1>Fleet</h1>
+  <p class="subtle">{{ view.businesses }} business{{ "es" if view.businesses != 1 }} under management</p>
+
+  {% if view.kill_switch_active %}
+    <div class="banner" role="alert">
+      Kill switch is ACTIVE{% if view.kill_switch_reason %} — {{ view.kill_switch_reason }}{% endif %}. Agents are halted.
+    </div>
+  {% endif %}
+
+  {% if view.businesses == 0 %}
+    <div class="empty">
+      <div class="big">No businesses yet</div>
+      <div>Provision one through the Business Factory and it will appear here.</div>
+    </div>
+  {% else %}
+    <section class="stats" aria-label="Fleet totals">
+      <div class="stat"><div class="label">Businesses</div><div class="value">{{ view.businesses }}</div></div>
+      <div class="stat"><div class="label">Revenue</div><div class="value">{{ view.total_revenue_minor | money }}</div></div>
+      <div class="stat"><div class="label">Spend</div><div class="value">{{ view.total_spend_minor | money }}</div></div>
+      <div class="stat">
+        <div class="label">Operating profit</div>
+        <div class="value {{ 'neg' if view.total_operating_profit_minor < 0 }}">{{ view.total_operating_profit_minor | money }}</div>
+      </div>
+      <div class="stat"><div class="label">Unprofitable</div><div class="value">{{ view.unprofitable }}</div></div>
+    </section>
+
+    <div class="card">
+      <h2>Businesses</h2>
+      <table>
+        <thead>
+          <tr><th scope="col">Business</th><th scope="col">Verdict</th>
+              <th scope="col" class="num">Operating profit</th><th scope="col">Health</th></tr>
+        </thead>
+        <tbody>
+          {% for row in view.rows %}
+            <tr>
+              <td><a href="/business/{{ row.business_id }}">{{ row.business_id }}</a></td>
+              <td>{{ row.verdict }}</td>
+              <td class="num {{ 'neg' if row.operating_profit_minor < 0 }}">{{ row.operating_profit_minor | money }}</td>
+              <td><span class="pill {{ row.status | lower }}">{{ row.status }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endblock %}

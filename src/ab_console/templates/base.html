@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Console{% endblock %} · Autonomous Business</title>
+  <link rel="stylesheet" href="/static/console.css">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Autonomous Business</span>
+    <span class="env">console</span>
+    <span class="spacer"></span>
+    {% if view.kill_switch_active %}
+      <span class="pill critical">kill switch active</span>
+    {% else %}
+      <span class="pill ok">operational</span>
+    {% endif %}
+    {% if view.alert_count %}
+      <span class="pill critical">{{ view.alert_count }} alert{{ "s" if view.alert_count != 1 }}</span>
+    {% endif %}
+  </header>
+  <div class="layout">
+    <nav class="side" aria-label="Primary">
+      <a href="/" aria-current="page">Fleet</a>
+      <a href="/business">Businesses</a>
+      <a href="/experiments">Experiments</a>
+      <a href="/audit">Audit</a>
+      <a href="/policy">Policy</a>
+    </nav>
+    <main>
+      {% block main %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

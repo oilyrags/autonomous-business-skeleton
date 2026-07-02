@@ -55,7 +55,21 @@ approval workflows, custom dashboards.
 
 ## Shipped
 
-_(populated per slice as they land)_
+- **G1 (Fleet Dashboard, tracer bullet):** pure `viewmodels.fleet(...)` → `FleetView` (totals via
+  `ab_obs.fleet_totals`, per-business rows with the worst `ab_monitor` status, attention-first sort,
+  alert count, kill-switch state) + `fmt_money` (integer minor units → money); FastAPI `GET /`
+  rendering `templates/fleet.html` (injectable fleet provider → empty/kill-switch states testable);
+  `static/console.css` design system (HIG tokens, top bar, nav, stats, pills, table, banner, empty
+  state; light `prefers-color-scheme` + `prefers-reduced-motion` honored); `make console` render
+  smoke (CI) + `make console-serve`. `CONTEXT.md` + map link. 9 tests (5 view-model + 4 route).
+
+## Considered: Webstudio (open-source visual builder)
+
+Offered by the owner as a possible accelerator. Declined for the console: Webstudio is a
+React-runtime visual site builder with its own Node toolchain/publishing — adopting it would
+reintroduce the parallel stack decision #1 rejected, and the console is data-driven server-rendered
+views, not authored pages. Where it *is* a good fit later: a real `ab_mvp` deployer adapter could
+publish generated landing pages to a self-hosted Webstudio behind the existing `Deployer` port.
 
 ## Deferred / out of scope
 

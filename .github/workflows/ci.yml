@@ -64,6 +64,8 @@ jobs:
         run: make social
       - name: Monitoring (checks -> Nagios plugin results)
         run: make monitor
+      - name: Console (Fleet Dashboard render smoke)
+        run: make console
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

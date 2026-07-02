@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ab_console.approvals import ApprovalPort, StubApprovalPort
+from ab_console.auth import Operator, check_origin, require_mutator, require_operator
 from ab_console.killswitch_port import KillSwitchPort, StubKillSwitchPort
 from ab_console.stream import SAMPLE_EVENTS, sse_format
 from ab_console.viewmodels import (
@@ -207,7 +208,11 @@ def _chrome(nav: str, view_or_state: FleetView | tuple[bool, str | None], alert_
 
 
 @app.get("/", response_class=HTMLResponse)
-def fleet_dashboard(request: Request, view: Annotated[FleetView, Depends(fleet_provider)]) -> HTMLResponse:
+def fleet_dashboard(
+    request: Request,
+    view: Annotated[FleetView, Depends(fleet_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
+) -> HTMLResponse:
     chrome = _chrome("fleet", view, view.alert_count)
     return templates.TemplateResponse(request, "fleet.html", {"view": view, "chrome": chrome})
 
@@ -221,6 +226,7 @@ def business_page(
     checks: Annotated[list[CheckResult], Depends(checks_provider)],
     experiments: Annotated[list[ExperimentRow], Depends(experiments_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
 ) -> HTMLResponse:
     view = business_detail(business_id, snapshots, econ, checks, experiments)
     chrome = _chrome("fleet", ks, 0)
@@ -236,6 +242,7 @@ def experiments_page(
     request: Request,
     rows: Annotated[list[ExperimentRow], Depends(experiments_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
     business_id: str | None = None,
 ) -> HTMLResponse:
     view = experiments_view(rows, business_id=business_id)
@@ -249,6 +256,7 @@ def audit_page(
     rows: Annotated[list[AuditRow], Depends(audit_provider)],
     intact: Annotated[bool, Depends(audit_integrity_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
     business_id: str | None = None,
     agent_id: str | None = None,
 ) -> HTMLResponse:
@@ -264,6 +272,7 @@ def audit_page(
 def killswitch_page(
     request: Request,
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
 ) -> HTMLResponse:
     view = intervention_view(kill_switch_active=ks[0], current_reason=ks[1])
     chrome = _chrome("killswitch", ks, 0)
@@ -275,8 +284,11 @@ async def killswitch_activate(
     request: Request,
     port: Annotated[KillSwitchPort, Depends(killswitch_port_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    operator: Annotated[Operator, Depends(require_operator)],
 ) -> HTMLResponse:
     """The deliberate action: a required reason + the typed confirm phrase, then the governed port."""
+    require_mutator(operator)  # halting the fleet needs a mutating role (least privilege)
+    check_origin(request)  # CSRF defense in depth
     # Parse the urlencoded body with the stdlib (no python-multipart dependency needed).
     raw = (await request.body()).decode("utf-8", errors="replace")
     form = {k: v[0] for k, v in parse_qs(raw).items()}
@@ -307,7 +319,7 @@ async def killswitch_activate(
         scope=scope,
         target_id=target_id.strip() or None,
         reason=reason.strip(),
-        activated_by="console.operator",
+        activated_by=operator.id,  # the real, signature-verified operator — not a constant
     )
     if not result.ok:
         return _render(
@@ -337,6 +349,7 @@ def approval_port_provider() -> ApprovalPort:
 @app.get("/events/stream")
 def events_stream(
     events: Annotated[list[dict[str, object]], Depends(decision_events_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
 ) -> StreamingResponse:
     """Server-Sent Events for the live feed — consumed by the browser's native EventSource."""
     return StreamingResponse(sse_format(events), media_type="text/event-stream")
@@ -346,6 +359,7 @@ def events_stream(
 def feed_page(
     request: Request,
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
 ) -> HTMLResponse:
     chrome = _chrome("feed", ks, 0)
     return templates.TemplateResponse(request, "feed.html", {"chrome": chrome})
@@ -356,6 +370,7 @@ def decisions_page(
     request: Request,
     pending: Annotated[list[PendingDecision], Depends(pending_decisions_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
 ) -> HTMLResponse:
     chrome = _chrome("decisions", ks, 0)
     return templates.TemplateResponse(
@@ -369,8 +384,11 @@ async def decisions_act(
     pending: Annotated[list[PendingDecision], Depends(pending_decisions_provider)],
     port: Annotated[ApprovalPort, Depends(approval_port_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    operator: Annotated[Operator, Depends(require_operator)],
 ) -> HTMLResponse:
     """Approve or reject a pending decision through the governed port. A rejection needs a note."""
+    require_mutator(operator)  # approving a high-stakes decision needs a mutating role
+    check_origin(request)  # CSRF defense in depth
     raw = (await request.body()).decode("utf-8", errors="replace")
     form = {k: v[0] for k, v in parse_qs(raw).items()}
     decision_id = form.get("decision_id", "")
@@ -391,7 +409,7 @@ async def decisions_act(
             decisions_view(pending, error="A note is required to reject — it is audited."),
             status_code=400,
         )
-    actor = "console.operator"
+    actor = operator.id  # the real, signature-verified operator — the audit attributes the human
     outcome = (
         port.approve(decision_id, actor=actor, note=note)
         if action == "approve"
@@ -409,5 +427,10 @@ def metrics(
     snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
 ) -> Response:
     """Prometheus scrape target: the same checks + business reads, as gauges (M5). One definition
-    per signal — Nagios and Prometheus both consume the deterministic ab_monitor/ab_obs sources."""
+    per signal — Nagios and Prometheus both consume the deterministic ab_monitor/ab_obs sources.
+
+    Intentionally NOT behind the operator auth (VULN-001): Prometheus scrapes it machine-to-machine
+    and cannot present a signed operator identity. It exposes only aggregate business gauges (no
+    audit/PII); restrict it at the network layer (scrape it over the internal network / mesh only,
+    as the monitoring compose profile does), or front it with a scrape credential in the proxy."""
     return Response(content=exposition(checks, snapshots), media_type=PROMETHEUS_CONTENT_TYPE)

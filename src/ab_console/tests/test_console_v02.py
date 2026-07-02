@@ -10,12 +10,19 @@ from fastapi.testclient import TestClient
 
 from ab_console.app import app, approval_port_provider
 from ab_console.approvals import StubApprovalPort
+from ab_console.auth import sign_identity
 from ab_console.viewmodels import PendingDecision, decisions_view, sparkline_points
+
+_OPERATOR = {
+    "X-Operator-Id": "alice.ops",
+    "X-Operator-Role": "operator",
+    "X-Operator-Sig": sign_identity("alice.ops", "operator"),
+}
 
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(app) as c:
+    with TestClient(app, headers=_OPERATOR) as c:  # authenticated by default (VULN-001)
         yield c
     app.dependency_overrides.clear()
 
@@ -90,10 +97,41 @@ def test_approve_routes_through_the_governed_port_and_clears_the_item(client: Te
         {
             "action": "approve",
             "decision_id": "pend-201",
-            "actor": "console.operator",
+            "actor": "alice.ops",  # the real, signature-verified operator — not a constant (VULN-001)
             "note": "checked evidence",
         }
     ]
+
+
+def test_a_read_only_role_cannot_approve() -> None:
+    viewer = {
+        "X-Operator-Id": "vic.viewer",
+        "X-Operator-Role": "viewer",  # not a mutating role
+        "X-Operator-Sig": sign_identity("vic.viewer", "viewer"),
+    }
+    with TestClient(app, headers=viewer) as c:
+        resp = c.post("/decisions/act", data={"decision_id": "pend-201", "action": "approve"})
+    assert resp.status_code == 403
+
+
+def test_cross_origin_write_is_refused() -> None:
+    resp = None
+    with TestClient(app, headers={**_OPERATOR, "Origin": "https://evil.example", "Host": "console"}) as c:
+        resp = c.post("/decisions/act", data={"decision_id": "pend-201", "action": "approve"})
+    assert resp.status_code == 403
+
+
+def test_killswitch_records_the_real_operator_not_a_constant() -> None:
+    from ab_console.app import killswitch_port_provider
+    from ab_console.killswitch_port import StubKillSwitchPort
+
+    stub = StubKillSwitchPort()
+    app.dependency_overrides[killswitch_port_provider] = lambda: stub
+    with TestClient(app, headers=_OPERATOR) as c:
+        resp = c.post("/killswitch", data={"scope": "global", "reason": "drill", "confirm": "HALT"})
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert stub.activations[0]["activated_by"] == "alice.ops"
 
 
 def test_reject_requires_a_note(client: TestClient) -> None:

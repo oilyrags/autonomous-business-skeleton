@@ -12,10 +12,18 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from ab_console.app import app
+from ab_console.auth import sign_identity
 
 
 def main() -> int:
-    with TestClient(app) as client:
+    # The console requires an authenticated operator (VULN-001); the trusted proxy signs the
+    # identity headers — the smoke does the same so it exercises the real auth path.
+    op = {
+        "X-Operator-Id": "smoke.operator",
+        "X-Operator-Role": "operator",
+        "X-Operator-Sig": sign_identity("smoke.operator", "operator"),
+    }
+    with TestClient(app, headers=op) as client:
         page = client.get("/")
         css = client.get("/static/console.css")
         daisy = client.get("/static/vendor/daisyui.css")

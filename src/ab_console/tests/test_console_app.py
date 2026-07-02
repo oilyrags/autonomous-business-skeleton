@@ -8,14 +8,37 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ab_console.app import app, fleet_provider
+from ab_console.auth import sign_identity
 from ab_console.viewmodels import FleetView, fleet
+
+_OPERATOR = {
+    "X-Operator-Id": "test.operator",
+    "X-Operator-Role": "operator",
+    "X-Operator-Sig": sign_identity("test.operator", "operator"),
+}
 
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(app) as c:
+    with TestClient(app, headers=_OPERATOR) as c:  # authenticated by default (VULN-001)
         yield c
     app.dependency_overrides.clear()
+
+
+def test_unauthenticated_request_is_rejected() -> None:
+    with TestClient(app) as anon:  # no operator headers
+        assert anon.get("/").status_code == 401
+
+
+def test_forged_operator_signature_is_rejected() -> None:
+    bad = {"X-Operator-Id": "mallory", "X-Operator-Role": "admin", "X-Operator-Sig": "deadbeef"}
+    with TestClient(app, headers=bad) as forged:
+        assert forged.get("/").status_code == 401
+
+
+def test_metrics_stays_scrapeable_without_operator_auth() -> None:
+    with TestClient(app) as anon:  # Prometheus can't present a signed operator identity
+        assert anon.get("/metrics").status_code == 200
 
 
 def test_dashboard_renders_totals_and_business_rows(client: TestClient) -> None:

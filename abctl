@@ -1,0 +1,3 @@
+#!/bin/sh
+# abctl — one front door for the skeleton's demos. `./abctl --help`
+exec env PYTHONPATH=src uv run python -m abctl "$@"

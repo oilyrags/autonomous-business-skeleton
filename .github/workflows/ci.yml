@@ -66,6 +66,8 @@ jobs:
         run: make monitor
       - name: Console (Fleet Dashboard render smoke)
         run: make console
+      - name: Quickstart story (abctl demo, no infra)
+        run: make demo-lite
       - name: Start infra (OPA + Redpanda + Postgres + Keycloak + Vault)
         run: docker compose up -d --wait opa redpanda postgres keycloak vault
       - name: Seed Vault

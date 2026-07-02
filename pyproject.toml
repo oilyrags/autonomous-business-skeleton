@@ -2,6 +2,8 @@
 name = "autonomous-business"
 version = "0.1.0"
 description = "Autonomous AI-First Business Skeleton — Phase 1 walking skeleton"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.7",

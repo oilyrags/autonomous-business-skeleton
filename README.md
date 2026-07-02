@@ -3,6 +3,19 @@
 The **operating system of an AI-run business**: a reusable, domain-driven architecture skeleton on which many business ideas can be launched, operated, scaled, pivoted, or shut down without rebuilding the foundation. AI-first, open-source-preferred, privacy-preserving (GDPR-first), audit-ready, and deterministic where it must be (money, identity, access, consent, irreversible actions).
 
 This repo is **both the design package and a working reference implementation** of its core loop.
+Licensed under [Apache 2.0](LICENSE).
+
+## Quickstart — pick your tier
+
+| Tier | Command | Needs | What you get |
+|---|---|---|---|
+| **1 · 60-second story** | `uv sync && make demo-lite` | Python + uv only | The whole loop on deterministic stubs: experiments decide → capital reallocates → real-ledger economics → marketing publishes → monitoring checks → the console renders. No Docker, no keys. |
+| **2 · Control plane** | `make console-serve` | Python + uv only | The GUI at `http://localhost:8600` — fleet dashboard, business detail, experiments, audit explorer, kill switch ([guide](docs/console.md)). |
+| **3 · Governed loop, live** | `make up-infra && make demo` | Docker | The core loop against real infra (Keycloak identity, OPA, Postgres ledger, Redpanda bus) — every control fires. |
+| **4 · Secure stack** | `make up && make smoke` | Docker (heavier) | The full SPIFFE/SPIRE mTLS mesh, network-isolated Postgres, containerized services. |
+
+Every demo is also addressable through one CLI: `./abctl --help`
+(`./abctl demo` = tier 1; `./abctl loop`, `./abctl social`, `./abctl monitor`, … for single acts).
 
 ## The governed loop
 

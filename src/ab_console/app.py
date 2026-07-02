@@ -40,10 +40,11 @@ from ab_console.viewmodels import (
     status_badge,
 )
 from ab_econ.core import UnitEconomics, UnitInputs, economics
-from ab_monitor.check import CheckResult, CheckStatus
+from ab_monitor.check import CheckResult, CheckStatus, cert_expiry_check, slo_burn_check
 from ab_monitor.prometheus import CONTENT_TYPE as PROMETHEUS_CONTENT_TYPE
 from ab_monitor.prometheus import exposition
 from ab_obs.core import Anomaly, AnomalyKind, BusinessSnapshot
+from ab_ops.reliability import ErrorBudget
 
 _DIR = Path(__file__).parent
 templates = Jinja2Templates(directory=str(_DIR / "templates"))
@@ -75,6 +76,8 @@ _SAMPLE_SNAPSHOTS = [
 _SAMPLE_CHECKS = [
     CheckResult("hog-health", CheckStatus.CRITICAL, "operating loss", business_id="hog"),
     CheckResult("rocket-health", CheckStatus.OK, "rocket healthy (profitable)", business_id="rocket"),
+    slo_burn_check("gateway", ErrorBudget(slo_target=0.99, window=1000), errors=7),  # 70% burned
+    cert_expiry_check("gateway", days_remaining=45, warn_days=30, crit_days=14),
 ]
 _SAMPLE_ANOMALIES = [Anomaly("hog", AnomalyKind.OPERATING_LOSS, "operating profit -30000 < floor")]
 _SAMPLE_ECON: dict[str, UnitEconomics] = {

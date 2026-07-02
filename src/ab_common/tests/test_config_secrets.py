@@ -15,7 +15,7 @@ _PROBE = "import ab_common.config as c; print(c.settings.operator_auth_secret)"
 def _run(**env_overrides: str) -> subprocess.CompletedProcess[str]:
     env = {"PATH": "/usr/bin:/bin", "PYTHONPATH": _SRC}
     # start from a clean slate, then apply the case's overrides
-    for var in ("AB_ENV", "AB_VAULT_TOKEN", "AB_PG_DSN", "AB_OPERATOR_AUTH_SECRET"):
+    for var in ("AB_ENV", "AB_VAULT_TOKEN", "AB_PG_DSN", "AB_OPERATOR_AUTH_SECRET", "AB_AUDIT_HMAC_KEY"):
         env.pop(var, None)
     env.update(env_overrides)
     return subprocess.run([sys.executable, "-c", _PROBE], capture_output=True, text=True, env=env)
@@ -39,6 +39,7 @@ def test_production_accepts_explicit_secrets() -> None:
         AB_PG_DSN="postgresql://u:p@db/ab",
         AB_VAULT_TOKEN="s.real",
         AB_OPERATOR_AUTH_SECRET="a-real-long-secret",
+        AB_AUDIT_HMAC_KEY="another-real-secret",
     )
     assert result.returncode == 0
     assert result.stdout.strip() == "a-real-long-secret"

@@ -55,6 +55,9 @@ class Settings:
     # Shared secret the intervention services (console, kill-switch) use to verify the reverse
     # proxy's signed operator-identity headers (VULN-001/004).
     operator_auth_secret: str = _secret("AB_OPERATOR_AUTH_SECRET", "dev-insecure-operator-secret")
+    # Key for the audit hash chain's HMAC (VULN-006). Held outside the DB so a DB-write adversary
+    # cannot re-forge the chain. A real deployment stores it in Vault/KMS, separate from Postgres.
+    audit_hmac_key: str = _secret("AB_AUDIT_HMAC_KEY", "dev-insecure-audit-key")
 
 
 settings = Settings()

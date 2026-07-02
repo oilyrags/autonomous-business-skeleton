@@ -17,6 +17,21 @@ Licensed under [Apache 2.0](LICENSE).
 Every demo is also addressable through one CLI: `./abctl --help`
 (`./abctl demo` = tier 1; `./abctl loop`, `./abctl social`, `./abctl monitor`, … for single acts).
 
+## The control plane
+
+The console (`make console-serve`, [guide](docs/console.md)) — fleet health with profit sparklines,
+a human-in-the-loop decision queue, a live SSE event feed, experiments with the statistics visible,
+a tamper-evident audit explorer, and a deliberate kill switch. Dark (`business`) and light
+(`corporate`) themes, toggle in the top bar or deep-link with `?theme=`.
+
+![Fleet dashboard (dark)](docs/img/console-fleet-dark.png)
+
+| Decision workspace | Kill switch |
+|---|---|
+| ![Decisions](docs/img/console-decisions-dark.png) | ![Kill switch](docs/img/console-killswitch-dark.png) |
+
+![Fleet dashboard (light)](docs/img/console-fleet-light.png)
+
 ## The governed loop
 
 Every agent action flows through one ingress where each control fires in order — LLMs reason; deterministic systems execute:

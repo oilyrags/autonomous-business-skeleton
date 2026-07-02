@@ -10,12 +10,15 @@
   <link rel="stylesheet" href="/static/console.css">
   <script src="/static/vendor/tailwind-browser.js"></script>
   <script>
-    // Theme before first paint: business (dark) / corporate (light), user-overridable.
+    // Theme before first paint: business (dark) / corporate (light). Priority: ?theme= (deep link)
+    // > localStorage (the toggle) > prefers-color-scheme.
     (function () {
-      const saved = localStorage.getItem("console-theme");
+      const fromUrl = new URLSearchParams(window.location.search).get("theme");
+      const saved = fromUrl || localStorage.getItem("console-theme");
       const dark = saved ? saved === "business"
         : window.matchMedia("(prefers-color-scheme: dark)").matches;
       document.documentElement.setAttribute("data-theme", dark ? "business" : "corporate");
+      if (fromUrl) localStorage.setItem("console-theme", fromUrl);
     })();
   </script>
 </head>

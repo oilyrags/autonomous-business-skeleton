@@ -106,7 +106,11 @@ def tool_call(
     #    agent to its tenants (VULN-002).
     business_id = req.args.get("business_id")
     business_id = str(business_id) if business_id is not None else None
-    if not opa.authorize(principal, req.tool, resource, req.purpose, business_id):
+    try:
+        allowed = opa.authorize(principal, req.tool, resource, req.purpose, business_id)
+    except opa.OpaUnavailable as exc:  # OPA outage → audited deny (fail closed), not an unhandled 500
+        return _deny(principal, req.tool, resource, f"authorization unavailable: {exc}", 503)
+    if not allowed:
         return _deny(principal, req.tool, resource, "not authorized by policy", 403)
 
     # 4a. Tenant binding (defense in depth, alongside the policy): an agent may not act for a

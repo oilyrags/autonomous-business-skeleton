@@ -191,6 +191,17 @@ class ExperimentCreated(Envelope):
     status: str = "proposed"
 
 
+class ProductStageChanged(Envelope):
+    """A product initiative moved through the gated SDLC (PRD 0008 P2). ``status`` is
+    in_progress | awaiting_human | halted | launched; ``business_id`` scopes it."""
+
+    business_id: str
+    initiative_id: str
+    stage: str
+    status: str
+    reason: str = ""
+
+
 class ProductScaffolded(Envelope):
     """Product Engineering scaffolded a charter-conformant service for a promoted initiative
     (PRD 0008). ``business_id`` is new (minted) or existing (extended)."""

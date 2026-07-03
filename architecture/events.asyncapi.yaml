@@ -107,6 +107,11 @@ channels:
     messages:
       PostMetricsCollected:
         $ref: '#/components/messages/PostMetricsCollected'
+  productStageChanged:
+    address: product.initiative.stage_changed
+    messages:
+      ProductStageChanged:
+        $ref: '#/components/messages/ProductStageChanged'
   productScaffolded:
     address: product.initiative.scaffolded
     messages:
@@ -192,6 +197,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/postMetricsCollected'
+  publishProductStageChanged:
+    action: send
+    channel:
+      $ref: '#/channels/productStageChanged'
   publishProductScaffolded:
     action: send
     channel:
@@ -586,6 +595,24 @@ components:
               amountMinor: { type: integer, description: Money received, in integer minor units. }
               currency: { type: string, default: EUR }
               customerRef: { type: string }
+
+    ProductStageChanged:
+      name: ProductStageChanged
+      title: Product stage changed
+      description: >
+        A product initiative moved through the gated SDLC (PRD 0008). `status` is one of
+        in_progress / awaiting_human / halted / launched; `businessId` scopes it.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, initiativeId, stage, status]
+            properties:
+              businessId: { type: string }
+              initiativeId: { type: string }
+              stage: { type: string }
+              status: { type: string, enum: [in_progress, awaiting_human, halted, launched] }
+              reason: { type: string }
 
     ProductScaffolded:
       name: ProductScaffolded

@@ -91,6 +91,18 @@ _DDL = [
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS product_initiatives (
+        initiative_id text PRIMARY KEY,
+        business_id   text NOT NULL,
+        title         text NOT NULL,
+        stage         text NOT NULL,
+        status        text NOT NULL,
+        reason        text NOT NULL DEFAULT '',
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        updated_at    timestamptz NOT NULL DEFAULT now()
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS experiments (
         experiment_id   text PRIMARY KEY,
         business_id     text NOT NULL,

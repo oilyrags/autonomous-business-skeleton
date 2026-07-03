@@ -121,6 +121,19 @@ PRD 0007.
   experiment) + CI step. 4 tests (propose_ideas dispatches only PROCEED with maker attribution; real
   model abstains; demo creates exactly the PROCEED experiments; CLI exits 0).
 
+- **E7 (`/growth` workspace UI):** a dedicated operator-authed `/growth` workspace in the
+  **established design system** (daisyUI 5 + vendored Tailwind 4, no new framework/build — ADR-0056
+  v0.3), added to the nav. **Ideate panel:** candidate cards from a live `IdeationResult` —
+  deterministic **verdict chips** (PROCEED green / REFINE amber / KILL red via `ideation_workspace`
+  view-model), score, grounding sources, and the LLM's hook/differentiation rendered as clearly
+  **advisory** (outlined badge + italic, de-emphasised) so the determinism line is legible; a
+  one-click **Propose** on PROCEED cards POSTs the embedded experiment through the governed
+  `/experiments/propose` (only PROCEED cards can propose — the gate decides, not the UI). **Open
+  experiments/outcomes** panel (zebra table). Pure `ideation_workspace` view-model. 3 tests
+  (verdict→badge + propose-gating; page renders panels + advisory label; auth required). Verified
+  live in **both themes** (dark + light) and the one-click Propose returns 200 through the governed
+  path.
+
 ## Rejected / deferred
 
 Ledger earmark of budget; N-arm `decide`; a deterministic Bayesian/sequential test; new registry

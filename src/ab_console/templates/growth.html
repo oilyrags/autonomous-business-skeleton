@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Growth{% endblock %}
+{% block main %}
+  <h1 class="text-3xl font-semibold tracking-tight">Growth &amp; Ideation</h1>
+  <p class="text-sm opacity-60 mt-1 mb-6">Ground &rarr; generate &rarr; score &rarr; <strong>deterministic gate</strong> &rarr; governed experiment. The LLM proposes and scores; the verdict and the create are deterministic.</p>
+
+  {# --- Ideate panel --- #}
+  <section class="mb-8">
+    <h2 class="text-lg font-medium mb-1">Ideate for {{ view.business_id }}</h2>
+    <p class="text-sm opacity-60 mb-4"><span class="badge badge-ghost badge-sm align-middle">grounding</span> {{ view.grounding_summary }}</p>
+
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {% for c in view.cards %}
+        <div class="card bg-base-100 shadow">
+          <div class="card-body">
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="card-title text-base">{{ c.title }}</h3>
+              <span class="badge {{ c.badge }} uppercase">{{ c.verdict }}</span>
+            </div>
+
+            {# advisory: the LLM's narrative + scores, clearly labelled and de-emphasised #}
+            <p class="text-sm opacity-70 italic">
+              <span class="badge badge-outline badge-xs not-italic mr-1">advisory</span>{{ c.hook }}
+            </p>
+            {% if c.differentiation %}<p class="text-xs opacity-50">{{ c.differentiation }}</p>{% endif %}
+
+            <div class="flex items-center gap-3 mt-1 text-xs">
+              <span class="tabular-nums">score <strong>{{ "%.1f" | format(c.overall) }}</strong>/5</span>
+              {% if c.grounded %}
+                <span class="text-success">grounded ({{ c.grounding_sources | length }})</span>
+              {% else %}
+                <span class="text-warning">un-grounded &mdash; capped</span>
+              {% endif %}
+            </div>
+            {% if c.grounding_sources %}
+              <ul class="text-xs opacity-60 list-disc pl-4">
+                {% for s in c.grounding_sources %}<li>{{ s }}</li>{% endfor %}
+              </ul>
+            {% endif %}
+
+            <div class="card-actions mt-2">
+              {% if c.can_propose %}
+                <form method="post" action="/experiments/propose">
+                  <input type="hidden" name="business_id" value="{{ c.business_id }}">
+                  <input type="hidden" name="hypothesis" value="{{ c.hypothesis }}">
+                  <input type="hidden" name="control_desc" value="current experience">
+                  <input type="hidden" name="treatment_desc" value="{{ c.title }}">
+                  <input type="hidden" name="budget" value="{{ "%.2f" | format(c.budget_minor / 100) }}">
+                  <input type="hidden" name="success_metrics" value="activation_rate">
+                  <button type="submit" class="btn btn-primary btn-sm">Propose experiment</button>
+                </form>
+              {% else %}
+                <button class="btn btn-sm btn-disabled" disabled>Gate: {{ c.verdict }}</button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# --- Open experiments panel --- #}
+  <section class="mb-8">
+    <h2 class="text-lg font-medium mb-2">Open experiments</h2>
+    {% if outcomes.rows %}
+      <div class="card bg-base-100 shadow">
+        <div class="card-body p-0">
+          <table class="table table-zebra">
+            <thead><tr><th scope="col">Experiment</th><th scope="col">Business</th><th scope="col">Hypothesis</th><th scope="col">Decision</th><th scope="col" class="text-right">Lift</th></tr></thead>
+            <tbody>
+              {% for e in outcomes.rows %}
+                <tr>
+                  <td>{{ e.experiment_id }}</td>
+                  <td><a class="link link-hover" href="/business/{{ e.business_id }}">{{ e.business_id }}</a></td>
+                  <td>{{ e.hypothesis }}</td>
+                  <td><span class="badge {{ e.action | action_badge }}">{{ e.action }}</span></td>
+                  <td class="text-right tabular-nums">{{ "%+.1f%%" | format(e.lift * 100) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% else %}
+      <p class="opacity-60 text-sm">No experiments yet — propose one above.</p>
+    {% endif %}
+  </section>
+{% endblock %}

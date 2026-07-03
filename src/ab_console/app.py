@@ -38,11 +38,13 @@ from ab_console.viewmodels import (
     experiments_view,
     fleet,
     fmt_money,
+    ideation_workspace,
     intervention_view,
     sparkline_points,
     status_badge,
 )
 from ab_econ.core import UnitEconomics, UnitInputs, economics
+from ab_growth.ideate import IdeationResult, StubGroundingSource, StubIdeationModel, ideate
 from ab_monitor.check import CheckResult, CheckStatus, cert_expiry_check, slo_burn_check
 from ab_monitor.prometheus import CONTENT_TYPE as PROMETHEUS_CONTENT_TYPE
 from ab_monitor.prometheus import exposition
@@ -243,6 +245,42 @@ def business_page(
 def growth_port_provider() -> GrowthPort:
     """The governed propose path. A live deploy returns HttpGrowthPort(token_provider=…)."""
     return _STUB_GROWTH
+
+
+def ideation_provider() -> IdeationResult:
+    """A sample ideation run (stub LLM + grounding). A live deploy runs the real IdeationModel
+    (GLM via model_gateway) on the operator's business + prompt."""
+    return ideate(
+        "rocket",
+        "reduce onboarding drop-off",
+        model=StubIdeationModel(),
+        grounding=StubGroundingSource(),
+        count=3,
+    )
+
+
+@app.get("/growth", response_class=HTMLResponse)
+def growth_workspace(
+    request: Request,
+    result: Annotated[IdeationResult, Depends(ideation_provider)],
+    rows: Annotated[list[ExperimentRow], Depends(experiments_provider)],
+    snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
+) -> HTMLResponse:
+    """The Growth & Ideation workspace (PRD 0007 E7): Ideate (gated candidates) + Propose + open
+    experiments + outcomes. Advisory LLM narrative is rendered distinctly from deterministic verdicts."""
+    chrome = _chrome("growth", ks, 0)
+    return templates.TemplateResponse(
+        request,
+        "growth.html",
+        {
+            "view": ideation_workspace(result),
+            "outcomes": experiments_view(rows),
+            "businesses": [s.business_id for s in snapshots],
+            "chrome": chrome,
+        },
+    )
 
 
 @app.get("/experiments", response_class=HTMLResponse)

@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from ab_econ.core import UnitEconomics
 from ab_growth.experiment import Decision, Experiment
+from ab_growth.ideate import IdeationResult
 from ab_monitor.check import CheckResult, CheckStatus
 from ab_obs.core import Anomaly, BusinessSnapshot, FleetTotals, fleet_totals
 from ab_schemas.models import Arm, ExperimentCreate
@@ -335,6 +336,68 @@ def build_proposal(
         )
     except ValidationError as exc:
         raise ValueError(f"Invalid proposal: {exc.error_count()} problem(s).") from exc
+
+
+# --- E7: /growth workspace (ideation → propose → open → outcomes) ----------------------------------
+
+_VERDICT_BADGE = {"proceed": "badge-success", "refine": "badge-warning", "kill": "badge-error"}
+
+
+@dataclass(frozen=True)
+class IdeaCard:
+    """One ideation candidate shaped for the workspace. Advisory fields (hook/differentiation) are
+    the LLM's narrative; verdict/badge/can_propose come from the deterministic gate — the template
+    renders the two distinctly so the determinism line is legible."""
+
+    idea_id: str
+    title: str
+    hook: str  # advisory (LLM)
+    differentiation: str  # advisory (LLM)
+    grounding_sources: list[str]
+    grounded: bool
+    overall: float
+    verdict: str  # deterministic: proceed | refine | kill
+    badge: str
+    can_propose: bool
+    # the embedded proposal, surfaced for one-click Propose
+    business_id: str
+    hypothesis: str
+    budget_minor: int
+
+
+@dataclass(frozen=True)
+class GrowthWorkspaceView:
+    business_id: str
+    grounding_summary: str
+    cards: list[IdeaCard]
+
+
+def ideation_workspace(result: IdeationResult) -> GrowthWorkspaceView:
+    """Shape an `ab_growth.ideate.IdeationResult` into workspace cards. Pure; only PROCEED ideas may
+    be proposed (the gate decides, not the UI)."""
+    cards = [
+        IdeaCard(
+            idea_id=j.candidate.idea_id,
+            title=j.candidate.title,
+            hook=j.candidate.one_line_hook,
+            differentiation=j.candidate.differentiation,
+            grounding_sources=list(j.candidate.grounding_sources),
+            grounded=bool(j.candidate.grounding_sources),
+            overall=j.overall,
+            verdict=j.verdict.value,
+            badge=_VERDICT_BADGE.get(j.verdict.value, "badge-ghost"),
+            can_propose=j.verdict.value == "proceed",
+            business_id=j.candidate.experiment.business_id,
+            hypothesis=j.candidate.experiment.hypothesis,
+            budget_minor=j.candidate.experiment.budget_minor,
+        )
+        for j in result.judged
+    ]
+    return GrowthWorkspaceView(
+        business_id=result.business_id,
+        grounding_summary=result.grounding.grounding_summary,
+        cards=cards,
+    )
 
 
 # --- v0.3: daisyUI badge mapping (presentation only) -----------------------------------------------

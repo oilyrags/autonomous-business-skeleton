@@ -108,3 +108,39 @@ def test_a_read_only_role_cannot_propose() -> None:
     }
     with TestClient(app, headers=viewer) as c:
         assert c.post("/experiments/propose", data=_form()).status_code == 403
+
+
+# --- E7: /growth workspace ------------------------------------------------------------------------
+
+
+def test_ideation_workspace_maps_verdicts_to_badges_and_gates_propose() -> None:
+    from ab_console.viewmodels import ideation_workspace
+    from ab_growth.ideate import StubGroundingSource, StubIdeationModel, ideate
+
+    result = ideate("rocket", "reduce drop-off", model=StubIdeationModel(), grounding=StubGroundingSource())
+    view = ideation_workspace(result)
+    by_id = {c.idea_id: c for c in view.cards}
+
+    strong = by_id["idea-strong"]
+    assert strong.verdict == "proceed" and strong.badge == "badge-success"
+    assert strong.can_propose is True and strong.grounded is True
+    assert strong.hypothesis  # the embedded experiment is surfaced for one-click propose
+
+    assert by_id["idea-weak"].badge == "badge-error" and by_id["idea-weak"].can_propose is False
+    ungrounded = by_id["idea-ungrounded"]
+    assert ungrounded.verdict == "refine" and ungrounded.grounded is False  # capped, cannot propose
+    assert ungrounded.can_propose is False
+
+
+def test_growth_workspace_page_renders_the_panels(client: TestClient) -> None:
+    body = client.get("/growth").text
+    assert "Ideate" in body and "Open experiments" in body
+    assert "badge-success" in body  # a PROCEED verdict chip
+    assert "advisory" in body.lower()  # the advisory narrative is labelled, distinct from verdicts
+
+
+def test_growth_workspace_requires_auth() -> None:
+    from ab_console.app import app
+
+    with TestClient(app) as anon:
+        assert anon.get("/growth").status_code == 401

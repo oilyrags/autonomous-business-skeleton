@@ -8,16 +8,14 @@ writes the plan under a `ventures` compose profile and brings it up (k8s/cloud l
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
 from ab_common import bus
 from ab_common.config import settings
 from ab_product.scaffold import ScaffoldPlan
-from ab_schemas.events import DataClassification, ProductDeployed, SubjectRef
+from ab_schemas.events import ProductDeployed, build
 
 
 @dataclass(frozen=True)
@@ -61,20 +59,15 @@ def deploy_product(
     """Deploy through the injected Deployer and, on success, publish `ProductDeployed`."""
     result = deployer.deploy(plan)
     if result.ok:
-        event = ProductDeployed(
-            event_name="ProductDeployed",
-            event_id=uuid.uuid4().hex,
-            occurred_at=datetime.now(tz=UTC),
+        event = build(
+            ProductDeployed,
+            subject=("Product", product_id),
             producer="product.engineering_agent",
-            data_classification=DataClassification.INTERNAL,
-            subject_ref=SubjectRef(type="Product", id=product_id),
             business_id=plan.business_id,
             initiative_id=initiative_id,
             product_id=product_id,
             service_name=plan.service_name,
             url=result.url,
         )
-        bus.publish(
-            settings.product_deployed_topic, key=product_id, value=event.model_dump_json(by_alias=True)
-        )
+        bus.publish_event(settings.product_deployed_topic, key=product_id, event=event)
     return result

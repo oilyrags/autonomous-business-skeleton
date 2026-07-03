@@ -9,7 +9,6 @@ refused even when policy would otherwise allow it.
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -24,7 +23,7 @@ from ab_gateway import authz
 from ab_killswitch import state as killswitch
 from ab_ledger import store as ledger_store
 from ab_ledger.core import LedgerError, Posting, Transaction
-from ab_schemas.events import DataClassification, LedgerEntryPosted, SubjectRef
+from ab_schemas.events import DataClassification, LedgerEntryPosted, build
 from ab_schemas.models import (
     DecisionWrite,
     ExperimentCreate,
@@ -153,7 +152,7 @@ def promote_initiative(principal: str, args: dict[str, Any]) -> str:
     event = to_scaffolded_event(
         plan, initiative.initiative_id, classification, product_id, producer=principal
     )
-    bus.publish(settings.product_topic, key=product_id, value=event.model_dump_json(by_alias=True))
+    bus.publish_event(settings.product_topic, key=product_id, event=event)
     return product_id
 
 
@@ -265,13 +264,11 @@ def transfer_payment(principal: str, args: dict[str, Any]) -> str:
     except LedgerError as exc:
         raise ToolDenied(f"ledger rule: {exc}") from exc
     if applied:  # publish the Finance domain event once per real posting (never on a replay)
-        event = LedgerEntryPosted(
-            event_name="LedgerEntryPosted",
-            event_id=uuid4().hex,
-            occurred_at=datetime.now(tz=UTC),
+        event = build(
+            LedgerEntryPosted,
+            subject=("LedgerTransaction", txn.txn_id),
             producer=principal,
             data_classification=DataClassification.FINANCIAL,
-            subject_ref=SubjectRef(type="LedgerTransaction", id=txn.txn_id),
             txn_id=txn.txn_id,
             idempotency_key=txn.idempotency_key,
             amount_minor=txn.magnitude,
@@ -281,7 +278,7 @@ def transfer_payment(principal: str, args: dict[str, Any]) -> str:
             checker=p.checker,
             business_id=p.business_id,
         )
-        bus.publish(settings.ledger_topic, key=txn.txn_id, value=event.model_dump_json(by_alias=True))
+        bus.publish_event(settings.ledger_topic, key=txn.txn_id, event=event)
     return txn.idempotency_key
 
 

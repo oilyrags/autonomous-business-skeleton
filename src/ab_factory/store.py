@@ -79,9 +79,7 @@ def provision(blueprint: Blueprint, capital_minor: int) -> Business:
     if business.status is Status.ACTIVE:
         _set_status(business.business_id, Status.ACTIVE)
         event = core.to_event(business)
-        bus.publish(
-            settings.business_topic, key=business.business_id, value=event.model_dump_json(by_alias=True)
-        )
+        bus.publish_event(settings.business_topic, key=business.business_id, event=event)
     return business
 
 

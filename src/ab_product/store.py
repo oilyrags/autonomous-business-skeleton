@@ -5,35 +5,28 @@ core holds the transitions, this wires Postgres + the bus. `business_id`-scoped;
 
 from __future__ import annotations
 
-import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 from ab_common import bus, db
 from ab_common.config import settings
 from ab_product.pipeline import PipelineState, Stage, start
-from ab_schemas.events import DataClassification, ProductStageChanged, SubjectRef
+from ab_schemas.events import ProductStageChanged, build
 
 _COLS = "initiative_id, business_id, title, stage, status, reason"
 
 
 def _publish(state: PipelineState) -> None:
-    event = ProductStageChanged(
-        event_name="ProductStageChanged",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    event = build(
+        ProductStageChanged,
+        subject=("ProductInitiative", state.initiative_id),
         producer="product.engineering_agent",
-        data_classification=DataClassification.INTERNAL,
-        subject_ref=SubjectRef(type="ProductInitiative", id=state.initiative_id),
         business_id=state.business_id,
         initiative_id=state.initiative_id,
         stage=state.stage.value,
         status=state.status,
         reason=state.reason,
     )
-    bus.publish(
-        settings.product_stage_topic, key=state.initiative_id, value=event.model_dump_json(by_alias=True)
-    )
+    bus.publish_event(settings.product_stage_topic, key=state.initiative_id, event=event)
 
 
 def _to_state(row: dict[str, Any]) -> PipelineState:

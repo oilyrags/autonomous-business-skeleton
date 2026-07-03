@@ -6,16 +6,14 @@ the plan to disk (stub records in CI).
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from html import escape
 from typing import Protocol
 
 from ab_product.blueprint import ProductBlueprint
 from ab_product.charter import Artifact, BusinessCharter, render_theme
 from ab_product.classify import Classification
-from ab_schemas.events import DataClassification, ProductScaffolded, SubjectRef
+from ab_schemas.events import ProductScaffolded, build
 
 # The dependencies + architecture rules the generated service is built to satisfy (→ conformant).
 _SCAFFOLD_DEPS = frozenset({"fastapi", "jinja2"})
@@ -142,17 +140,14 @@ def to_scaffolded_event(
     producer: str = "product.engineering_agent",
 ) -> ProductScaffolded:
     """Build the `ProductScaffolded` domain event for a conformant scaffold. Pure."""
-    return ProductScaffolded(
-        event_name="ProductScaffolded",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        ProductScaffolded,
+        subject=("Product", product_id),
         producer=producer,
-        data_classification=DataClassification.INTERNAL,
-        subject_ref=SubjectRef(type="Product", id=product_id),
         business_id=plan.business_id,
         initiative_id=initiative_id,
         product_id=product_id,
-        classification=classification.kind,
+        classification=classification.kind,  # domain field — passes through **fields cleanly
         service_name=plan.service_name,
         theme_name=plan.artifact.theme_name,
         file_count=len(plan.files),

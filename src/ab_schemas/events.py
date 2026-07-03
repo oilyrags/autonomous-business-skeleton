@@ -6,8 +6,10 @@ with an alias generator bridging the two. Populate by field name or alias.
 
 from __future__ import annotations
 
-from datetime import datetime
+import uuid
+from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -56,6 +58,35 @@ class Envelope(_Camel):
     schema_version: str = "1.0.0"
     data_classification: DataClassification
     subject_ref: SubjectRef
+
+
+E = TypeVar("E", bound=Envelope)
+
+
+def build(
+    event_cls: type[E],
+    *,
+    subject: tuple[str, str],
+    producer: str,
+    data_classification: DataClassification = DataClassification.INTERNAL,
+    **fields: Any,
+) -> E:
+    """Construct a domain event, filling the six envelope fields every event otherwise repeats:
+    ``event_name`` (the class name), a fresh ``event_id``, ``occurred_at`` (UTC now), ``producer``,
+    ``data_classification`` (INTERNAL unless overridden), and ``subject_ref`` (from ``subject`` =
+    ``(type, id)``). Domain fields are passed as keyword arguments — the parameter is named
+    ``data_classification`` (not ``classification``) so an event with a domain field literally called
+    ``classification`` can still pass it through ``**fields``. The single place the envelope ritual
+    lives; pure — it does not publish (see ``ab_common.bus.publish_event``)."""
+    return event_cls(
+        event_name=event_cls.__name__,
+        event_id=uuid.uuid4().hex,
+        occurred_at=datetime.now(tz=UTC),
+        producer=producer,
+        data_classification=data_classification,
+        subject_ref=SubjectRef(type=subject[0], id=subject[1]),
+        **fields,
+    )
 
 
 class AgentDecisionMade(Envelope):

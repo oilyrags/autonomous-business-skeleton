@@ -7,13 +7,12 @@ real spend and real customers. Money is integer minor units; the external ad pla
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 from typing import Protocol
 
 from pydantic import BaseModel, Field
 
 from ab_ledger.core import Posting, Transaction
-from ab_schemas.events import AdSpendPlaced, DataClassification, SubjectRef
+from ab_schemas.events import AdSpendPlaced, DataClassification, build
 
 
 class AdCampaign(BaseModel):
@@ -63,13 +62,11 @@ def to_transaction(result: AdResult, *, maker: str, checker: str) -> Transaction
 
 
 def to_event(result: AdResult, *, producer: str = "growth.ad_agent") -> AdSpendPlaced:
-    return AdSpendPlaced(
-        event_name="AdSpendPlaced",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        AdSpendPlaced,
+        subject=("Business", result.business_id),
         producer=producer,
         data_classification=DataClassification.FINANCIAL,
-        subject_ref=SubjectRef(type="Business", id=result.business_id),
         business_id=result.business_id,
         channel=result.channel,
         spend_minor=result.spend_minor,

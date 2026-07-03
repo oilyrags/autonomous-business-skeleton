@@ -7,9 +7,7 @@ allow or deny, is audited.
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
 from typing import Annotated
-from uuid import uuid4
 
 from fastapi import FastAPI, Header
 from fastapi.responses import JSONResponse
@@ -21,7 +19,7 @@ from ab_gateway import authz, model_gateway, opa, tools
 from ab_identity import revocation
 from ab_identity.tokens import InvalidToken, validate_token
 from ab_killswitch import state
-from ab_schemas.events import AgentDecisionMade, ApprovalStatus, DataClassification, SubjectRef
+from ab_schemas.events import AgentDecisionMade, ApprovalStatus, DataClassification, build
 from ab_schemas.models import ToolCallRequest, ToolCallResult
 
 
@@ -148,13 +146,11 @@ def tool_call(
     # 7. Emit the domain event — only for tools that record a Decision (per their contract),
     #    so non-decision tools (e.g. egress) don't inflate the decision stream.
     if spec.emits_decision:
-        event = AgentDecisionMade(
-            event_name="AgentDecisionMade",
-            event_id=str(uuid4()),
-            occurred_at=datetime.now(tz=UTC),
+        event = build(
+            AgentDecisionMade,
+            subject=("Decision", decision_id),
             producer=principal,
             data_classification=DataClassification.CONFIDENTIAL,
-            subject_ref=SubjectRef(type="Decision", id=decision_id),
             decision_id=decision_id,
             agent_id=principal,
             # Clamp the self-asserted governance metadata (VULN-003): the authority the agent may
@@ -167,7 +163,7 @@ def tool_call(
             ),
             business_id=business_id,
         )
-        bus.publish(settings.decision_topic, key=decision_id, value=event.model_dump_json(by_alias=True))
+        bus.publish_event(settings.decision_topic, key=decision_id, event=event)
 
     return JSONResponse(
         status_code=200,

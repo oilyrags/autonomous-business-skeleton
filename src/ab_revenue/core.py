@@ -7,13 +7,12 @@ only; the external processor lives behind ``ab_revenue.gateway.RevenueGateway``.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 from typing import Protocol
 
 from pydantic import BaseModel, Field
 
 from ab_ledger.core import PAYMENT_CAP_MINOR, Posting, Transaction
-from ab_schemas.events import DataClassification, RevenueReceived, SubjectRef
+from ab_schemas.events import DataClassification, RevenueReceived, build
 
 
 class Charge(BaseModel):
@@ -53,13 +52,11 @@ def to_transaction(charge: Charge, *, maker: str) -> Transaction:
 
 
 def to_event(charge: Charge, *, producer: str = "revenue.rail") -> RevenueReceived:
-    return RevenueReceived(
-        event_name="RevenueReceived",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        RevenueReceived,
+        subject=("Charge", charge.external_ref),
         producer=producer,
         data_classification=DataClassification.FINANCIAL,
-        subject_ref=SubjectRef(type="Charge", id=charge.external_ref),
         business_id=charge.business_id,
         external_ref=charge.external_ref,
         amount_minor=charge.amount_minor,

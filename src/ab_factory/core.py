@@ -7,13 +7,11 @@ compliance) and persists; here everything is deterministic and injectable.
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from enum import StrEnum
 
 from ab_growth.blueprint import Blueprint
-from ab_schemas.events import BusinessActivated, DataClassification, SubjectRef
+from ab_schemas.events import BusinessActivated, build
 
 
 class Underfunded(Exception):
@@ -105,13 +103,10 @@ def provision(blueprint: Blueprint, capital_minor: int) -> Business:
 
 def to_event(business: Business, producer: str = "executive.portfolio_agent") -> BusinessActivated:
     """The business-scoped activation event (published by the store when a business goes live)."""
-    return BusinessActivated(
-        event_name="BusinessActivated",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        BusinessActivated,
+        subject=("Business", business.business_id),
         producer=producer,
-        data_classification=DataClassification.INTERNAL,
-        subject_ref=SubjectRef(type="Business", id=business.business_id),
         business_id=business.business_id,
         name=business.name,
         capital_minor=business.capital_minor,

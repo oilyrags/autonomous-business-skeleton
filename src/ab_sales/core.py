@@ -6,15 +6,13 @@ minor units. A won sale bridges to ``ab_revenue`` (which books it to the ledger)
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 from ab_revenue.core import Charge
-from ab_schemas.events import DataClassification, SaleClosed, SubjectRef
+from ab_schemas.events import DataClassification, SaleClosed, build
 
 
 class Stage(StrEnum):
@@ -82,13 +80,11 @@ def expansion_charge(result: SaleResult, *, uplift_minor: int) -> Charge | None:
 
 
 def to_event(result: SaleResult, *, producer: str = "sales.ops_agent") -> SaleClosed:
-    return SaleClosed(
-        event_name="SaleClosed",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        SaleClosed,
+        subject=("Business", result.business_id),
         producer=producer,
         data_classification=DataClassification.FINANCIAL,
-        subject_ref=SubjectRef(type="Business", id=result.business_id),
         business_id=result.business_id,
         opportunity_id=result.opportunity_id,
         stage=result.stage.value,

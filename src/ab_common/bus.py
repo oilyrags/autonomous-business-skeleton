@@ -5,6 +5,8 @@ from collections.abc import Iterator
 from confluent_kafka import Consumer, Producer
 from confluent_kafka.admin import AdminClient, NewTopic  # type: ignore[attr-defined]
 
+from ab_schemas.events import Envelope
+
 from .config import settings
 
 
@@ -26,6 +28,12 @@ def publish(topic: str, key: str, value: str) -> None:
     producer = Producer({"bootstrap.servers": settings.kafka_bootstrap})
     producer.produce(topic, key=key.encode(), value=value.encode())
     producer.flush(10)
+
+
+def publish_event(topic: str, key: str, event: Envelope) -> None:
+    """Serialize a domain event to its camelCase wire form and publish it — the single place the
+    Envelope→bus wire contract (``model_dump_json(by_alias=True)``) lives."""
+    publish(topic, key=key, value=event.model_dump_json(by_alias=True))
 
 
 def consume(topic: str, group: str, *, max_messages: int = 1, timeout: float = 10.0) -> Iterator[str]:

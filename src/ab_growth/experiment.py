@@ -5,9 +5,7 @@ the experiment and reads the recommendation, but never overrides the money/guard
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -15,7 +13,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from ab_growth.blueprint import Blueprint
 from ab_growth.stats import significant, two_proportion_p_value
-from ab_schemas.events import DataClassification, ExperimentConcluded, ExperimentCreated, SubjectRef
+from ab_schemas.events import ExperimentConcluded, ExperimentCreated, build
 from ab_schemas.models import ExperimentCreate
 
 
@@ -118,13 +116,10 @@ def to_created_event(
     proposal: ExperimentCreate, experiment_id: str, producer: str = "growth.experiment_design_agent"
 ) -> ExperimentCreated:
     """Build the `ExperimentCreated` event for a persisted proposal (PRD 0007). Pure."""
-    return ExperimentCreated(
-        event_name="ExperimentCreated",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        ExperimentCreated,
+        subject=("Experiment", experiment_id),
         producer=producer,
-        data_classification=DataClassification.INTERNAL,
-        subject_ref=SubjectRef(type="Experiment", id=experiment_id),
         business_id=proposal.business_id,
         experiment_id=experiment_id,
         hypothesis=proposal.hypothesis,
@@ -138,13 +133,10 @@ def to_event(
     exp: Experiment, decision: Decision, producer: str = "growth.experiment_agent"
 ) -> ExperimentConcluded:
     """Build the business-scoped domain event for a decision (for publishing on the bus)."""
-    return ExperimentConcluded(
-        event_name="ExperimentConcluded",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        ExperimentConcluded,
+        subject=("Experiment", exp.experiment_id),
         producer=producer,
-        data_classification=DataClassification.INTERNAL,
-        subject_ref=SubjectRef(type="Experiment", id=exp.experiment_id),
         business_id=exp.business_id,
         experiment_id=exp.experiment_id,
         action=decision.action.value,

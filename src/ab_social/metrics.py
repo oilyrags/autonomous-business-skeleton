@@ -6,14 +6,12 @@ integer basis-points score, so posts are comparable across platforms and can dri
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Mapping
-from datetime import UTC, datetime
 from typing import Protocol
 
 from pydantic import BaseModel, Field
 
-from ab_schemas.events import DataClassification, PostMetricsCollected, SubjectRef
+from ab_schemas.events import PostMetricsCollected, build
 
 
 class PostMetrics(BaseModel):
@@ -69,13 +67,10 @@ def composite_score(m: PostMetrics, kpi_weights: Mapping[str, float]) -> int:
 def to_event(
     m: PostMetrics, score_bps: int, *, producer: str = "marketing.social_agent"
 ) -> PostMetricsCollected:
-    return PostMetricsCollected(
-        event_name="PostMetricsCollected",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        PostMetricsCollected,
+        subject=("Business", m.business_id),
         producer=producer,
-        data_classification=DataClassification.INTERNAL,
-        subject_ref=SubjectRef(type="Business", id=m.business_id),
         business_id=m.business_id,
         platform_post_id=m.platform_post_id,
         impressions=m.impressions,

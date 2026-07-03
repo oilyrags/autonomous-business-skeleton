@@ -52,7 +52,7 @@ def create(proposal: ExperimentCreate, experiment_id: str, *, created_by: str) -
         conn.commit()
     if applied:
         event = to_created_event(proposal, experiment_id, producer=created_by)
-        bus.publish(settings.experiment_topic, key=experiment_id, value=event.model_dump_json(by_alias=True))
+        bus.publish_event(settings.experiment_topic, key=experiment_id, event=event)
     return applied
 
 
@@ -74,11 +74,7 @@ def conclude(exp: Experiment, decision: Decision) -> bool:
         conn.commit()
     if transitioned:
         event = to_event(exp, decision)
-        bus.publish(
-            settings.experiment_concluded_topic,
-            key=exp.experiment_id,
-            value=event.model_dump_json(by_alias=True),
-        )
+        bus.publish_event(settings.experiment_concluded_topic, key=exp.experiment_id, event=event)
     return transitioned
 
 

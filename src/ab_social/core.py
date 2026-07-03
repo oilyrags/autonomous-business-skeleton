@@ -6,14 +6,12 @@ deterministic, in the ``ab_growth``/``ab_econ`` style. No I/O.
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Protocol
 
 from pydantic import BaseModel
 
-from ab_schemas.events import ContentPublished, DataClassification, SubjectRef
+from ab_schemas.events import ContentPublished, build
 from ab_social.profile import SocialProfile
 
 
@@ -104,13 +102,10 @@ def qa(draft: Draft, profile: SocialProfile) -> QaResult:
 def to_event(
     draft: Draft, platform_post_id: str, *, producer: str = "marketing.social_agent"
 ) -> ContentPublished:
-    return ContentPublished(
-        event_name="ContentPublished",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        ContentPublished,
+        subject=("Business", draft.business_id),
         producer=producer,
-        data_classification=DataClassification.INTERNAL,
-        subject_ref=SubjectRef(type="Business", id=draft.business_id),
         business_id=draft.business_id,
         platform=draft.platform,
         platform_post_id=platform_post_id,

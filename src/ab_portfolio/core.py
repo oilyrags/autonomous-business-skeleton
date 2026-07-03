@@ -8,15 +8,13 @@ writes (capital moves are human-in-the-loop, architecture/06).
 from __future__ import annotations
 
 import os
-import uuid
 from collections.abc import Container
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from ab_schemas.events import CapitalReallocationRecommended, DataClassification, SubjectRef
+from ab_schemas.events import CapitalReallocationRecommended, build
 
 SUNSET_FLOOR = int(os.environ.get("AB_SUNSET_FLOOR", "-2"))
 MIN_CONCLUSIVE = int(os.environ.get("AB_MIN_CONCLUSIVE", "3"))
@@ -126,13 +124,10 @@ def to_events(
 ) -> list[CapitalReallocationRecommended]:
     """Business-scoped advisory events for a set of recommendations (for review, not execution)."""
     return [
-        CapitalReallocationRecommended(
-            event_name="CapitalReallocationRecommended",
-            event_id=uuid.uuid4().hex,
-            occurred_at=datetime.now(tz=UTC),
+        build(
+            CapitalReallocationRecommended,
+            subject=("Business", r.business_id),
             producer=producer,
-            data_classification=DataClassification.INTERNAL,
-            subject_ref=SubjectRef(type="Business", id=r.business_id),
             business_id=r.business_id,
             action=r.action.value,
             capital_delta=r.capital_delta,

@@ -7,14 +7,12 @@ same blueprint always yields the same page (and hash). The hosting target lives 
 from __future__ import annotations
 
 import hashlib
-import uuid
-from datetime import UTC, datetime
 from typing import Protocol
 
 from pydantic import BaseModel
 
 from ab_growth.blueprint import Blueprint
-from ab_schemas.events import DataClassification, MvpDeployed, SubjectRef
+from ab_schemas.events import MvpDeployed, build
 
 
 class PageArtifact(BaseModel):
@@ -51,13 +49,10 @@ def render(blueprint: Blueprint) -> PageArtifact:
 
 
 def to_event(deployment: Deployment, *, producer: str = "growth.mvp_agent") -> MvpDeployed:
-    return MvpDeployed(
-        event_name="MvpDeployed",
-        event_id=uuid.uuid4().hex,
-        occurred_at=datetime.now(tz=UTC),
+    return build(
+        MvpDeployed,
+        subject=("Business", deployment.business_id),
         producer=producer,
-        data_classification=DataClassification.INTERNAL,
-        subject_ref=SubjectRef(type="Business", id=deployment.business_id),
         business_id=deployment.business_id,
         url=deployment.url,
         content_hash=deployment.content_hash,

@@ -9,6 +9,9 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src ./src
+# The compliance inventory (RoPA) is read at runtime by the readiness/DPIA gates — without it any
+# governed tool that hits the readiness gate (e.g. growth.experiment.create) 500s in-container.
+COPY architecture ./architecture
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH=/app/src \
     PYTHONUNBUFFERED=1

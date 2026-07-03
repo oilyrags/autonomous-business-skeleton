@@ -10,6 +10,7 @@ implements the shared `ab_growth.proposer.ExperimentProposer` seam (the stub liv
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 
 from ab_growth.proposer import GrowthOutcome
@@ -22,11 +23,12 @@ SERVICE_AGENT = "growth.experiment_design_agent"
 class HttpGrowthPort:
     """Call `growth.experiment.create` on the real gateway, under the service agent identity, with
     the operator recorded in metadata (governed + audited). Implements `ExperimentProposer`.
-    `token_provider` mints the agent's OIDC token (the console holds the service credential)."""
+    `token_provider` mints the agent's OIDC token (the console holds the service credential). The
+    gateway ingress is `AB_GATEWAY_URL` (the governed `/tool-call` endpoint)."""
 
-    def __init__(self, token_provider: Callable[[], str], base_url: str = "http://localhost:18090") -> None:
+    def __init__(self, token_provider: Callable[[], str], base_url: str | None = None) -> None:
         self._token = token_provider
-        self._base_url = base_url.rstrip("/")
+        self._base_url = (base_url or os.environ.get("AB_GATEWAY_URL", "http://localhost:18080")).rstrip("/")
 
     def create(self, proposal: ExperimentCreate, *, maker: str) -> GrowthOutcome:
         import httpx  # lazy: only for a real proposal

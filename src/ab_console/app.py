@@ -25,7 +25,7 @@ from ab_common.adapters import select_adapter
 from ab_console import live_reads
 from ab_console.approvals import ApprovalPort, StubApprovalPort
 from ab_console.auth import Operator, check_origin, require_mutator, require_operator
-from ab_console.killswitch_port import KillSwitchPort, StubKillSwitchPort
+from ab_console.killswitch_port import HttpKillSwitchPort, KillSwitchPort, StubKillSwitchPort
 from ab_console.product_port import ProductPort, StubProductPort
 from ab_console.stream import SAMPLE_EVENTS, sse_format
 from ab_console.viewmodels import (
@@ -49,7 +49,14 @@ from ab_console.viewmodels import (
     status_badge,
 )
 from ab_econ.core import UnitEconomics, UnitInputs, economics
-from ab_growth.ideate import IdeationResult, StubGroundingSource, StubIdeationModel, ideate
+from ab_growth.ideate import (
+    IdeationModel,
+    IdeationResult,
+    ModelGatewayIdeationModel,
+    StubGroundingSource,
+    StubIdeationModel,
+    ideate,
+)
 from ab_growth.kpis import experiment_gauges, experiment_kpis
 from ab_growth.proposer import ExperimentProposer, StubExperimentProposer
 from ab_growth.store import ExperimentRecord
@@ -258,8 +265,10 @@ def kill_switch_state_provider() -> tuple[bool, str | None]:
 
 
 def killswitch_port_provider() -> KillSwitchPort:
-    """The governed activation path. A live deployment returns HttpKillSwitchPort()."""
-    return _STUB_KILLSWITCH
+    """The governed activation path (PRD 0009 S6). AB_KILLSWITCH_PORT_PROVIDER=http → the live
+    kill-switch service (operator-signed); default → the stub. A live deployment sets it to http."""
+    real: dict[str, Callable[[], KillSwitchPort]] = {"http": HttpKillSwitchPort}
+    return select_adapter("killswitch_port", stub=lambda: _STUB_KILLSWITCH, real=real)
 
 
 def _chrome(nav: str, view_or_state: FleetView | tuple[bool, str | None], alert_count: int) -> Chrome:
@@ -320,10 +329,17 @@ def growth_port_provider() -> ExperimentProposer:
 
 
 def run_ideation(business_id: str, prompt: str) -> IdeationResult:
-    """Run the ideation pipeline for a business. A live deploy swaps StubIdeationModel for the real
-    ModelGatewayIdeationModel (GLM via model_gateway) — which is why this runs only on an explicit
-    operator trigger (POST /growth/ideate), never on a page GET (it costs an LLM call)."""
-    return ideate(business_id, prompt, model=StubIdeationModel(), grounding=StubGroundingSource(), count=3)
+    """Run the ideation pipeline for a business (PRD 0009 S6). AB_IDEATION_PROVIDER=modelgateway uses
+    the real ModelGatewayIdeationModel (GLM via model_gateway, eval-gated) — which is why this runs
+    only on an explicit operator trigger, never a GET. The real adapter abstains safely when no model
+    is promoted, so fall back to the deterministic stub to keep the workspace usable."""
+    real: dict[str, Callable[[], IdeationModel]] = {"modelgateway": ModelGatewayIdeationModel}
+    model = select_adapter("ideation", stub=StubIdeationModel, real=real)
+    grounding = StubGroundingSource()
+    result = ideate(business_id, prompt, model=model, grounding=grounding, count=3)
+    if not result.judged and not isinstance(model, StubIdeationModel):
+        result = ideate(business_id, prompt, model=StubIdeationModel(), grounding=grounding, count=3)
+    return result
 
 
 def _render_growth(

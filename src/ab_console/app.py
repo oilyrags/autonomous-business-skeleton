@@ -10,6 +10,7 @@ nothing an agent couldn't.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -20,6 +21,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from ab_common.adapters import select_adapter
 from ab_console import live_reads
 from ab_console.approvals import ApprovalPort, StubApprovalPort
 from ab_console.auth import Operator, check_origin, require_mutator, require_operator
@@ -298,9 +300,23 @@ def business_page(
     return templates.TemplateResponse(request, "business.html", {"view": view, "chrome": chrome})
 
 
+def _http_growth_port() -> ExperimentProposer:
+    """HttpGrowthPort acting as the growth agent: the token_provider mints a client-credentials OIDC
+    token for `growth.experiment_design_agent` (secret from Vault) — the console fronts the agent
+    (dual attribution: the operator is recorded as `maker`). Lazy: the token is minted per call."""
+    from ab_common.secrets import get_client_secret
+    from ab_console.growth_port import HttpGrowthPort
+    from ab_identity.oidc import fetch_token
+
+    agent = "growth.experiment_design_agent"
+    return HttpGrowthPort(token_provider=lambda: fetch_token(agent, get_client_secret(agent)))
+
+
 def growth_port_provider() -> ExperimentProposer:
-    """The governed propose path. A live deploy returns HttpGrowthPort(token_provider=…)."""
-    return _STUB_GROWTH
+    """The governed propose path (PRD 0009 S5). AB_GROWTH_PORT_PROVIDER=http → the live gateway as the
+    growth agent; default → the deterministic stub. Advisory seam (not fail-closed)."""
+    real: dict[str, Callable[[], ExperimentProposer]] = {"http": _http_growth_port}
+    return select_adapter("growth_port", stub=lambda: _STUB_GROWTH, real=real)
 
 
 def run_ideation(business_id: str, prompt: str) -> IdeationResult:

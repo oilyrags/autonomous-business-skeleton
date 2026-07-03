@@ -5,6 +5,30 @@
   "sslRequired": "none",
   "clients": [
     {
+      "clientId": "growth.experiment_design_agent",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "growth-secret",
+      "protocolMappers": [
+        {
+          "name": "ab-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "ab-gateway",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "executive.cmo_agent",
       "enabled": true,
       "protocol": "openid-connect",

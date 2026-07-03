@@ -17,7 +17,8 @@ build:       ## build the service image
 
 seed-vault:  ## write agent client secrets into Vault (KV v2)
 	docker compose exec -T vault vault kv put secret/ab/clients \
-		executive.cmo_agent=cmo-secret executive.intern_agent=intern-secret
+		executive.cmo_agent=cmo-secret executive.intern_agent=intern-secret \
+		growth.experiment_design_agent=growth-secret
 
 up:          ## bring up the full secure-by-default stack (infra -> SPIRE -> mTLS proxies -> services)
 	$(COMPOSE_SECURE) up -d --build --wait opa redpanda postgres keycloak vault

@@ -338,6 +338,58 @@ def build_proposal(
         raise ValueError(f"Invalid proposal: {exc.error_count()} problem(s).") from exc
 
 
+# --- P3: /product workspace (gated SDLC + per-business design-language preview) ---------------------
+
+_PRODUCT_BADGE = {
+    "in_progress": "badge-info",
+    "awaiting_human": "badge-warning",
+    "halted": "badge-error",
+    "launched": "badge-success",
+}
+
+
+@dataclass(frozen=True)
+class ProductRow:
+    initiative_id: str
+    business_id: str
+    stage: str
+    status: str
+    badge: str  # deterministic status badge
+    awaiting_human: bool
+    reason: str
+    swatch_primary: str  # the business's charter theme (its distinct design language), previewed
+    swatch_accent: str
+
+
+@dataclass(frozen=True)
+class ProductWorkspaceView:
+    rows: list[ProductRow]
+
+
+def product_workspace(initiatives: Sequence[object]) -> ProductWorkspaceView:
+    """Shape gated-SDLC pipeline states into workspace rows, each carrying a preview of the business's
+    distinct design language (its charter theme colours). Pure."""
+    from ab_product.charter import default_tokens
+
+    rows = []
+    for state in initiatives:
+        tokens = default_tokens(state.business_id)  # type: ignore[attr-defined]
+        rows.append(
+            ProductRow(
+                initiative_id=state.initiative_id,  # type: ignore[attr-defined]
+                business_id=state.business_id,  # type: ignore[attr-defined]
+                stage=state.stage.value,  # type: ignore[attr-defined]
+                status=state.status,  # type: ignore[attr-defined]
+                badge=_PRODUCT_BADGE.get(state.status, "badge-ghost"),  # type: ignore[attr-defined]
+                awaiting_human=state.status == "awaiting_human",  # type: ignore[attr-defined]
+                reason=state.reason,  # type: ignore[attr-defined]
+                swatch_primary=tokens.primary,
+                swatch_accent=tokens.accent,
+            )
+        )
+    return ProductWorkspaceView(rows=rows)
+
+
 # --- E7: /growth workspace (ideation → propose → open → outcomes) ----------------------------------
 
 _VERDICT_BADGE = {"proceed": "badge-success", "refine": "badge-warning", "kill": "badge-error"}

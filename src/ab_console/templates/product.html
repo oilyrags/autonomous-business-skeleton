@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Products{% endblock %}
+{% block main %}
+  <h1 class="text-3xl font-semibold tracking-tight">Product Engineering</h1>
+  <p class="text-sm opacity-60 mt-1 mb-6">Promoted initiatives moving through the gated SDLC. The LLM proposes specs (advisory); classification, scaffold, conformance, and the stage gates are deterministic. DPIA and launch are human gates.</p>
+
+  {% if acted %}
+    <div class="alert alert-success mb-6" role="status"><span>{{ acted }}</span></div>
+  {% elif approve_error %}
+    <div class="alert alert-warning mb-6" role="alert"><span>{{ approve_error }}</span></div>
+  {% endif %}
+
+  {% if view.rows %}
+    <div class="card bg-base-100 shadow">
+      <div class="card-body p-0">
+        <h2 class="card-title px-6 pt-5 pb-2 text-base">Initiatives</h2>
+        <table class="table table-zebra">
+          <thead>
+            <tr><th scope="col">Initiative</th><th scope="col">Business</th><th scope="col">Design</th>
+                <th scope="col">Stage</th><th scope="col">Status</th><th scope="col">Human gate</th></tr>
+          </thead>
+          <tbody>
+            {% for r in view.rows %}
+              <tr>
+                <td class="font-medium">{{ r.initiative_id }}</td>
+                <td><a class="link link-hover" href="/business/{{ r.business_id }}">{{ r.business_id }}</a></td>
+                <td>
+                  {# the business's distinct design language, previewed as its charter theme colours #}
+                  <span class="inline-flex gap-1 align-middle" title="charter theme for {{ r.business_id }}">
+                    <span class="inline-block w-4 h-4 rounded" style="background: {{ r.swatch_primary }}"></span>
+                    <span class="inline-block w-4 h-4 rounded" style="background: {{ r.swatch_accent }}"></span>
+                  </span>
+                </td>
+                <td class="capitalize">{{ r.stage }}</td>
+                <td><span class="badge {{ r.badge }}">{{ r.status }}</span>
+                  {% if r.reason %}<span class="block text-xs opacity-50">{{ r.reason }}</span>{% endif %}
+                </td>
+                <td>
+                  {% if r.awaiting_human %}
+                    <form method="post" action="/product/approve">
+                      <input type="hidden" name="initiative_id" value="{{ r.initiative_id }}">
+                      <input type="hidden" name="stage" value="{{ r.stage }}">
+                      <button type="submit" class="btn btn-primary btn-sm">Approve {{ r.stage }}</button>
+                    </form>
+                  {% else %}
+                    <span class="opacity-40 text-sm">&mdash;</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <div class="hero py-16">
+      <div class="hero-content text-center">
+        <div>
+          <p class="text-lg font-medium">No initiatives in engineering</p>
+          <p class="opacity-60 mt-1">Promoted growth initiatives appear here as they move through the pipeline.</p>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

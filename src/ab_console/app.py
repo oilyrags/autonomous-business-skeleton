@@ -22,6 +22,7 @@ from fastapi.templating import Jinja2Templates
 from ab_console.approvals import ApprovalPort, StubApprovalPort
 from ab_console.auth import Operator, check_origin, require_mutator, require_operator
 from ab_console.killswitch_port import KillSwitchPort, StubKillSwitchPort
+from ab_console.product_port import ProductPort, StubProductPort
 from ab_console.stream import SAMPLE_EVENTS, sse_format
 from ab_console.viewmodels import (
     CONFIRM_PHRASE,
@@ -39,6 +40,7 @@ from ab_console.viewmodels import (
     fmt_money,
     ideation_workspace,
     intervention_view,
+    product_workspace,
     sparkline_points,
     status_badge,
 )
@@ -52,6 +54,7 @@ from ab_monitor.prometheus import CONTENT_TYPE as PROMETHEUS_CONTENT_TYPE
 from ab_monitor.prometheus import exposition
 from ab_obs.core import Anomaly, AnomalyKind, BusinessSnapshot
 from ab_ops.reliability import ErrorBudget
+from ab_product.pipeline import PipelineState, Stage
 
 _DIR = Path(__file__).parent
 templates = Jinja2Templates(directory=str(_DIR / "templates"))
@@ -160,6 +163,15 @@ _SAMPLE_PENDING = [
 _STUB_KILLSWITCH = StubKillSwitchPort()
 _STUB_APPROVALS = StubApprovalPort()
 _STUB_GROWTH = StubExperimentProposer()
+_STUB_PRODUCT = StubProductPort()
+
+_SAMPLE_INITIATIVES = [
+    PipelineState("init-vtwin", "verifiable-ai-vehicle-twin", Stage.DPIA, "awaiting_human", "personal data"),
+    PipelineState("init-inbox2", "inboxiq", Stage.LAUNCH, "awaiting_human", "ready to ship"),
+    PipelineState("init-rocket", "rocket", Stage.SCAFFOLD, "in_progress"),
+    PipelineState("init-hog", "hog", Stage.QA, "halted", "charter conformance failed"),
+    PipelineState("init-steady", "steady", Stage.LAUNCHED, "launched", "approved by ceo"),
+]
 
 _SAMPLE_EXPERIMENT_RECORDS = [
     ExperimentRecord(
@@ -341,6 +353,64 @@ async def growth_ideate(
     prompt = form.get("prompt", "").strip() or "surface a grounded growth opportunity"
     view = ideation_workspace(run_ideation(business_id, prompt))
     return _render_growth(request, ks, rows, snapshots, view=view)
+
+
+# --- P3: /product workspace (gated SDLC + human gates) ---------------------------------------------
+
+
+def product_initiatives_provider() -> list[PipelineState]:
+    """Product initiatives in the gated SDLC. A live deploy returns `ab_product.store.list_by_business()`."""
+    return _SAMPLE_INITIATIVES
+
+
+def product_port_provider() -> ProductPort:
+    """The governed human-gate approval path. A live deploy returns a gateway-backed adapter."""
+    return _STUB_PRODUCT
+
+
+@app.get("/product", response_class=HTMLResponse)
+def product_workspace_page(
+    request: Request,
+    initiatives: Annotated[list[PipelineState], Depends(product_initiatives_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
+) -> HTMLResponse:
+    """The Product Engineering workspace (PRD 0008 P3): initiatives + gated-SDLC status + each
+    business's charter theme preview + human DPIA/launch approval."""
+    chrome = _chrome("product", ks, 0)
+    return templates.TemplateResponse(
+        request, "product.html", {"view": product_workspace(initiatives), "chrome": chrome}
+    )
+
+
+@app.post("/product/approve", response_class=HTMLResponse)
+async def product_approve(
+    request: Request,
+    initiatives: Annotated[list[PipelineState], Depends(product_initiatives_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    operator: Annotated[Operator, Depends(require_operator)],
+    port: Annotated[ProductPort, Depends(product_port_provider)],
+) -> HTMLResponse:
+    """Approve a pending DPIA/launch gate through the governed ProductPort — the console does nothing
+    an agent couldn't; the real operator is recorded as the actor (VULN-001 + PRD 0008 P3)."""
+    require_mutator(operator)  # advancing a governed initiative past a human gate needs a mutating role
+    check_origin(request)  # CSRF defense in depth
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    form = {k: v[0] for k, v in parse_qs(raw).items()}
+    initiative_id = form.get("initiative_id", "")
+    stage = form.get("stage", "")
+    chrome = _chrome("product", ks, 0)
+
+    outcome = port.approve(initiative_id, stage=stage, actor=operator.id)
+    view = product_workspace(initiatives)
+    acted = outcome.detail if outcome.ok else None
+    error = None if outcome.ok else outcome.detail
+    return templates.TemplateResponse(
+        request,
+        "product.html",
+        {"view": view, "chrome": chrome, "acted": acted, "approve_error": error},
+        status_code=200 if outcome.ok else 502,
+    )
 
 
 @app.get("/experiments", response_class=HTMLResponse)

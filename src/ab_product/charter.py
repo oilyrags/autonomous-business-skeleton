@@ -11,6 +11,8 @@ charter (a new version, append-only) — they can grow the language, never contr
 
 from __future__ import annotations
 
+import hashlib
+
 from pydantic import BaseModel, Field
 
 # The architecture rules the skeleton mandates for every product (baked into a charter's defaults).
@@ -109,6 +111,22 @@ def charter_conformance(artifact: Artifact, charter: BusinessCharter) -> Conform
     if not 1 <= artifact.charter_version <= charter.version:
         violations.append("missing or invalid charter-version reference")
     return ConformanceReport(ok=not violations, violations=tuple(violations))
+
+
+def default_tokens(business_id: str) -> DesignTokens:
+    """Deterministic, per-business design tokens (a distinct primary/accent seeded from the id) —
+    the default design language shared by the Scaffolder and the console's theme preview."""
+    h = hashlib.sha256(business_id.encode()).hexdigest()
+    return DesignTokens(
+        primary=f"#{h[0:6]}",
+        secondary="#1f2937",
+        accent=f"#{h[6:12]}",
+        neutral="#111827",
+        base_100="#0b0c0e",
+        radius_rem=0.5,
+        font_family="Inter, system-ui, sans-serif",
+        density="comfortable",
+    )
 
 
 def render_theme(charter: BusinessCharter) -> str:

@@ -42,6 +42,7 @@ class Settings:
     )
     product_topic: str = os.environ.get("AB_PRODUCT_TOPIC", "product.initiative.scaffolded")
     product_stage_topic: str = os.environ.get("AB_PRODUCT_STAGE_TOPIC", "product.initiative.stage_changed")
+    product_deployed_topic: str = os.environ.get("AB_PRODUCT_DEPLOYED_TOPIC", "product.initiative.deployed")
     # OIDC (Keycloak). Defaults target the host-published port for tests; in-container
     # services override these to reach Keycloak by service name (see docker-compose).
     oidc_token_url: str = os.environ.get(

@@ -107,6 +107,11 @@ channels:
     messages:
       PostMetricsCollected:
         $ref: '#/components/messages/PostMetricsCollected'
+  productDeployed:
+    address: product.initiative.deployed
+    messages:
+      ProductDeployed:
+        $ref: '#/components/messages/ProductDeployed'
   productStageChanged:
     address: product.initiative.stage_changed
     messages:
@@ -197,6 +202,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/postMetricsCollected'
+  publishProductDeployed:
+    action: send
+    channel:
+      $ref: '#/channels/productDeployed'
   publishProductStageChanged:
     action: send
     channel:
@@ -595,6 +604,23 @@ components:
               amountMinor: { type: integer, description: Money received, in integer minor units. }
               currency: { type: string, default: EUR }
               customerRef: { type: string }
+
+    ProductDeployed:
+      name: ProductDeployed
+      title: Product deployed
+      description: >
+        A scaffolded product was deployed into the governed mesh (PRD 0008). `businessId`-scoped.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, initiativeId, productId, serviceName, url]
+            properties:
+              businessId: { type: string }
+              initiativeId: { type: string }
+              productId: { type: string }
+              serviceName: { type: string }
+              url: { type: string }
 
     ProductStageChanged:
       name: ProductStageChanged

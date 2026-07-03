@@ -191,6 +191,16 @@ class ExperimentCreated(Envelope):
     status: str = "proposed"
 
 
+class ProductDeployed(Envelope):
+    """A scaffolded product was deployed into the governed mesh (PRD 0008 P4). ``business_id``-scoped."""
+
+    business_id: str
+    initiative_id: str
+    product_id: str
+    service_name: str
+    url: str
+
+
 class ProductStageChanged(Envelope):
     """A product initiative moved through the gated SDLC (PRD 0008 P2). ``status`` is
     in_progress | awaiting_human | halted | launched; ``business_id`` scopes it."""

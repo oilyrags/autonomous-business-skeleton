@@ -82,6 +82,30 @@ def _app_py(blueprint: ProductBlueprint, service_name: str) -> str:
     )
 
 
+def _dockerfile() -> str:
+    return (
+        "FROM python:3.12-slim\n"
+        "WORKDIR /app\n"
+        "RUN pip install --no-cache-dir fastapi uvicorn\n"
+        "COPY . /app\n"
+        'CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]\n'
+    )
+
+
+def _compose_fragment(business_id: str, service_name: str) -> str:
+    # A compose service merged into the `ventures` profile: business_id-labelled, on the mesh network.
+    return (
+        "services:\n"
+        f"  {service_name}:\n"
+        f"    build: ./ventures/{service_name}\n"
+        "    labels:\n"
+        f'      - "business_id={business_id}"\n'
+        "    networks:\n"
+        "      - monitoring\n"
+        "    restart: unless-stopped\n"
+    )
+
+
 def scaffold(blueprint: ProductBlueprint, charter: BusinessCharter) -> ScaffoldPlan:
     """Deterministically render the product service from the blueprint + charter. The plan is
     business_id-scoped, themed by the charter, and declares an artifact that satisfies the charter."""
@@ -90,6 +114,10 @@ def scaffold(blueprint: ProductBlueprint, charter: BusinessCharter) -> ScaffoldP
         ScaffoldFile(f"{service_name}/app.py", _app_py(blueprint, service_name)),
         ScaffoldFile(f"{service_name}/templates/index.html", _index_html(blueprint, charter)),
         ScaffoldFile(f"{service_name}/__init__.py", ""),
+        ScaffoldFile(f"{service_name}/Dockerfile", _dockerfile()),
+        ScaffoldFile(
+            f"{service_name}/compose.fragment.yml", _compose_fragment(charter.business_id, service_name)
+        ),
     )
     artifact = Artifact(
         theme_name=charter.theme_name,

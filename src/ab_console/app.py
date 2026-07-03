@@ -45,6 +45,8 @@ from ab_console.viewmodels import (
 )
 from ab_econ.core import UnitEconomics, UnitInputs, economics
 from ab_growth.ideate import IdeationResult, StubGroundingSource, StubIdeationModel, ideate
+from ab_growth.kpis import experiment_gauges, experiment_kpis
+from ab_growth.store import ExperimentRecord
 from ab_monitor.check import CheckResult, CheckStatus, cert_expiry_check, slo_burn_check
 from ab_monitor.prometheus import CONTENT_TYPE as PROMETHEUS_CONTENT_TYPE
 from ab_monitor.prometheus import exposition
@@ -158,6 +160,41 @@ _SAMPLE_PENDING = [
 _STUB_KILLSWITCH = StubKillSwitchPort()
 _STUB_APPROVALS = StubApprovalPort()
 _STUB_GROWTH = StubGrowthPort()
+
+_SAMPLE_EXPERIMENT_RECORDS = [
+    ExperimentRecord(
+        "exp-cta-1",
+        "rocket",
+        "question CTA lifts engagement",
+        ["control", "treatment"],
+        80_000,
+        "concluded",
+        "scale",
+    ),
+    ExperimentRecord(
+        "exp-price-2",
+        "hog",
+        "lower price lifts conversion",
+        ["control", "treatment"],
+        50_000,
+        "concluded",
+        "kill",
+    ),
+    ExperimentRecord(
+        "exp-open-3",
+        "rocket",
+        "shorter headline lifts signups",
+        ["control", "treatment"],
+        60_000,
+        "proposed",
+        None,
+    ),
+]
+
+
+def experiment_records_provider() -> list[ExperimentRecord]:
+    """All experiments (for the KPI projection). A live deploy returns `store.list_by_business()`."""
+    return _SAMPLE_EXPERIMENT_RECORDS
 
 
 def fleet_provider() -> FleetView:
@@ -531,12 +568,16 @@ async def decisions_act(
 def metrics(
     checks: Annotated[list[CheckResult], Depends(checks_provider)],
     snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
+    experiments: Annotated[list[ExperimentRecord], Depends(experiment_records_provider)],
 ) -> Response:
-    """Prometheus scrape target: the same checks + business reads, as gauges (M5). One definition
-    per signal — Nagios and Prometheus both consume the deterministic ab_monitor/ab_obs sources.
+    """Prometheus scrape target: the same checks + business reads + experiment KPIs, as gauges
+    (M5 rail; E6 adds `ab_experiment_*`). One definition per signal — Nagios and Prometheus both
+    consume the deterministic ab_monitor/ab_obs/ab_growth sources.
 
     Intentionally NOT behind the operator auth (VULN-001): Prometheus scrapes it machine-to-machine
     and cannot present a signed operator identity. It exposes only aggregate business gauges (no
     audit/PII); restrict it at the network layer (scrape it over the internal network / mesh only,
     as the monitoring compose profile does), or front it with a scrape credential in the proxy."""
-    return Response(content=exposition(checks, snapshots), media_type=PROMETHEUS_CONTENT_TYPE)
+    body = exposition(checks, snapshots)
+    body += "\n".join(experiment_gauges(experiment_kpis(experiments))) + "\n"  # E6 growth KPIs
+    return Response(content=body, media_type=PROMETHEUS_CONTENT_TYPE)

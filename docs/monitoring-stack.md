@@ -47,8 +47,9 @@ consumers):
 
 - **`/metrics` on the console** (`http://localhost:8600/metrics`) — a pure, hand-rolled Prometheus
   text exposition (`ab_monitor/prometheus.py`; no `prometheus-client` dependency): every check as
-  `ab_check_status` (+ perfdata and warn/crit thresholds as series) and per-business economics
-  (`ab_business_*`, `ab_fleet_*`), all tagged `business_id`.
+  `ab_check_status` (+ perfdata and warn/crit thresholds as series), per-business economics
+  (`ab_business_*`, `ab_fleet_*`), and experiment KPIs (`ab_experiment_*`: open/concluded/win-rate/
+  budget — PRD 0007 E6), all tagged `business_id`.
 - **Version-controlled config** under `monitoring/`: Prometheus scrape + **SLO burn-rate rules**
   (`ab:error_budget_burn:ratio` from the `ab_ops` error-budget perfdata; `ErrorBudgetBurnHigh`,
   `CheckCritical`, `BusinessUnprofitable` alerts with runbook links), Alertmanager routing (grouped

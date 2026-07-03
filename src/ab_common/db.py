@@ -99,6 +99,7 @@ _DDL = [
         budget_minor    bigint NOT NULL,
         success_metrics jsonb NOT NULL,
         status          text NOT NULL DEFAULT 'proposed',
+        decision        text,
         created_by      text NOT NULL,
         created_at      timestamptz NOT NULL DEFAULT now()
     )

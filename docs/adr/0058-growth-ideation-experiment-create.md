@@ -134,7 +134,15 @@ PRD 0007.
   live in **both themes** (dark + light) and the one-click Propose returns 200 through the governed
   path.
 
+- **E6 (experiment KPIs + docs — PRD 0007 complete):** pure `ab_growth/kpis.py` folds the
+  experiments store into per-business KPIs (open / concluded / scaled / win-rate-bps /
+  budget-committed) and renders `ab_experiment_*` Prometheus gauges; the experiments store gains a
+  `decision` column (set on `conclude`) + `list_by_business`; the console `/metrics` (M5 rail)
+  surfaces the gauges so Grafana shows them (win-rate + open-experiment panels added). Closing docs:
+  CONTEXT-MAP, monitoring-stack, PRD status. 3 tests. **PRD 0007 E1–E7 all shipped.**
+
 ## Rejected / deferred
 
-Ledger earmark of budget; N-arm `decide`; a deterministic Bayesian/sequential test; new registry
+Full dbt-medallion warehouse projection of experiment events (the M5 Prometheus rail covers the
+KPIs today); ledger earmark of budget; N-arm `decide`; a deterministic Bayesian/sequential test; new registry
 agents / LangGraph/CrewAI orchestration. Each is logged in PRD 0007 rather than silently dropped.

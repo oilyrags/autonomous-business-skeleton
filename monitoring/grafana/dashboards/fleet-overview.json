@@ -119,6 +119,32 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 9,
+      "title": "Experiment win rate (bps)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "ab_experiment_win_rate_bps",
+          "legendFormat": "{{business_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Open experiments by business",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "ab_experiment_open",
+          "legendFormat": "{{business_id}}",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }

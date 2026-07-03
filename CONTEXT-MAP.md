@@ -82,6 +82,11 @@ _Avoid_: MVP, prototype, spike (those imply throwaway or scope, not a load-beari
 - [ab_schemas](./src/ab_schemas/CONTEXT.md) — shared kernel: domain-event models + tool-arg schemas
 - [ab_common](./src/ab_common/CONTEXT.md) — shared infrastructure (Postgres, bus, config, secrets)
 
+> **Experimentation & Growth** (`ab_growth`) now spans the full loop (PRD 0007): pure `decide`;
+> a governed `growth.experiment.create` tool + `store`; a `runner` (live stats → deterministic
+> decide → `conclude`); an `ideate` engine (ground→generate→score→gate→design, ports+stub LLM); and
+> `kpis` surfaced on the console `/metrics` (M5 rail) → Grafana.
+
 ### Examples (not bounded contexts)
 - [ab_examples](./src/ab_examples/CONTEXT.md) — worked examples composing the contexts end to end (`inboxiq`)
 

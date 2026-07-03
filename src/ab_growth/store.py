@@ -26,6 +26,7 @@ class ExperimentRecord:
     arm_names: list[str]
     budget_minor: int
     status: str
+    decision: str | None = None  # scale|pivot|kill|continue once concluded, else None
 
 
 def create(proposal: ExperimentCreate, experiment_id: str, *, created_by: str) -> bool:
@@ -60,7 +61,8 @@ def conclude(exp: Experiment, decision: Decision) -> None:
     portfolio context already folds into capital signals (PRD 0007 E3). Idempotent on status."""
     with db.connect() as conn:
         conn.execute(
-            "UPDATE experiments SET status = 'concluded' WHERE experiment_id = %s", (exp.experiment_id,)
+            "UPDATE experiments SET status = 'concluded', decision = %s WHERE experiment_id = %s",
+            (decision.action.value, exp.experiment_id),
         )
         conn.commit()
     event = to_event(exp, decision)
@@ -71,6 +73,9 @@ def conclude(exp: Experiment, decision: Decision) -> None:
     )
 
 
+_COLS = "experiment_id, business_id, hypothesis, arms, budget_minor, status, decision"
+
+
 def _row_to_record(row: dict[str, Any]) -> ExperimentRecord:
     return ExperimentRecord(
         experiment_id=str(row["experiment_id"]),
@@ -79,16 +84,13 @@ def _row_to_record(row: dict[str, Any]) -> ExperimentRecord:
         arm_names=[str(a["name"]) for a in row["arms"]],
         budget_minor=int(row["budget_minor"]),
         status=str(row["status"]),
+        decision=str(row["decision"]) if row["decision"] is not None else None,
     )
 
 
 def get(experiment_id: str) -> ExperimentRecord | None:
     with db.connect() as conn:
-        cur = conn.execute(
-            "SELECT experiment_id, business_id, hypothesis, arms, budget_minor, status "
-            "FROM experiments WHERE experiment_id = %s",
-            (experiment_id,),
-        )
+        cur = conn.execute(f"SELECT {_COLS} FROM experiments WHERE experiment_id = %s", (experiment_id,))
         row = cur.fetchone()
         cols = [d[0] for d in cur.description] if cur.description else []
     return _row_to_record(dict(zip(cols, row, strict=True))) if row else None
@@ -99,10 +101,18 @@ def list_open(business_id: str | None = None) -> list[ExperimentRecord]:
     clause, params = ("WHERE business_id = %s", (business_id,)) if business_id else ("", ())
     with db.connect() as conn:
         cur = conn.execute(
-            f"SELECT experiment_id, business_id, hypothesis, arms, budget_minor, status "
-            f"FROM experiments {clause + (' AND' if clause else 'WHERE')} status <> 'concluded' "
-            f"ORDER BY created_at DESC",
+            f"SELECT {_COLS} FROM experiments "
+            f"{clause + (' AND' if clause else 'WHERE')} status <> 'concluded' ORDER BY created_at DESC",
             params,
         )
+        cols = [d[0] for d in cur.description] if cur.description else []
+        return [_row_to_record(dict(zip(cols, r, strict=True))) for r in cur.fetchall()]
+
+
+def list_by_business(business_id: str | None = None) -> list[ExperimentRecord]:
+    """All experiments (any status), optionally scoped to one business — feeds the KPI projection."""
+    clause, params = ("WHERE business_id = %s", (business_id,)) if business_id else ("", ())
+    with db.connect() as conn:
+        cur = conn.execute(f"SELECT {_COLS} FROM experiments {clause} ORDER BY created_at DESC", params)
         cols = [d[0] for d in cur.description] if cur.description else []
         return [_row_to_record(dict(zip(cols, r, strict=True))) for r in cur.fetchall()]

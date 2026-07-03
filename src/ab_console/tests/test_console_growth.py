@@ -144,3 +144,13 @@ def test_growth_workspace_requires_auth() -> None:
 
     with TestClient(app) as anon:
         assert anon.get("/growth").status_code == 401
+
+
+def test_metrics_surfaces_experiment_kpis_for_grafana() -> None:
+    from ab_console.app import app
+
+    with TestClient(app) as anon:  # /metrics is the open M5 scrape target
+        body = anon.get("/metrics").text
+    assert 'ab_experiment_open{business_id="rocket"} 1' in body
+    assert 'ab_experiment_concluded{business_id="rocket"} 1' in body
+    assert 'ab_experiment_win_rate_bps{business_id="rocket"} 10000' in body  # 1/1 concluded scaled

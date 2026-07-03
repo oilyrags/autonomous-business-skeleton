@@ -51,8 +51,17 @@ allow if {
 	principal_serves_business
 }
 
+# PRD 0008: the product engineering agent may promote an initiative into a governed scaffold,
+# tenant-bound (extend a business it serves, or mint a new one when business_id is null).
+allow if {
+	input.action == "product.initiative.promote"
+	input.principal == "product.engineering_agent"
+	principal_serves_business
+}
+
 # Per-principal tenant grants (mirror ab_gateway/authz.py; a real deployment loads this as OPA data).
 agent_businesses := {
 	"executive.cmo_agent": ["*"],
 	"growth.experiment_design_agent": ["*"],
+	"product.engineering_agent": ["*"],
 }

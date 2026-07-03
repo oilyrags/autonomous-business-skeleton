@@ -25,7 +25,13 @@ from ab_killswitch import state as killswitch
 from ab_ledger import store as ledger_store
 from ab_ledger.core import LedgerError, Posting, Transaction
 from ab_schemas.events import DataClassification, LedgerEntryPosted, SubjectRef
-from ab_schemas.models import DecisionWrite, ExperimentCreate, NotifyExternal, PaymentTransfer
+from ab_schemas.models import (
+    DecisionWrite,
+    ExperimentCreate,
+    NotifyExternal,
+    PaymentTransfer,
+    ProductInitiative,
+)
 
 Handler = Callable[[str, dict[str, Any]], str]
 
@@ -109,6 +115,46 @@ def create_experiment(principal: str, args: dict[str, Any]) -> str:
     experiment_id = f"exp_{uuid4().hex[:12]}"
     experiment_store.create(proposal, experiment_id, created_by=principal)
     return experiment_id
+
+
+def promote_initiative(principal: str, args: dict[str, Any]) -> str:
+    """Promote a validated initiative into a charter-conformant product scaffold (PRD 0008). The LLM
+    proposes the blueprint (a spec); classification, charter, scaffold, and the conformance gate are
+    deterministic. An EXTENSION must be tenant-bound; a non-conformant scaffold is refused BEFORE any
+    event is emitted. Returns the product_id."""
+    from ab_product.blueprint import StubProductModel
+    from ab_product.charter import BusinessCharter, charter_conformance
+    from ab_product.classify import classify
+    from ab_product.scaffold import scaffold, to_scaffolded_event
+
+    try:
+        initiative = ProductInitiative.model_validate(args)
+    except ValidationError as exc:
+        raise ToolDenied(f"invalid initiative args: {exc.error_count()} error(s)", status=400) from exc
+
+    classification = classify(initiative)  # deterministic new vs extension
+    if classification.kind == "extension" and not authz.serves_business(
+        principal, classification.business_id
+    ):
+        raise ToolDenied(
+            f"'{principal}' is not authorized for business '{classification.business_id}'", status=403
+        )
+
+    blueprint = StubProductModel().spec(initiative, classification.business_id)  # LLM seam (P5: real)
+    charter = BusinessCharter(
+        business_id=classification.business_id, version=1, tokens=blueprint.design_tokens
+    )
+    plan = scaffold(blueprint, charter)
+    report = charter_conformance(plan.artifact, charter)
+    if not report.ok:  # deterministic gate — no un-conformant scaffold ships
+        raise ToolDenied(f"scaffold not charter-conformant: {'; '.join(report.violations)}")
+
+    product_id = f"prod_{classification.business_id}"
+    event = to_scaffolded_event(
+        plan, initiative.initiative_id, classification, product_id, producer=principal
+    )
+    bus.publish(settings.product_topic, key=product_id, value=event.model_dump_json(by_alias=True))
+    return product_id
 
 
 def _require_ready_business(principal: str, business_id: str) -> tuple[factory_core.Business, int]:
@@ -283,6 +329,13 @@ REGISTRY: dict[str, ToolSpec] = {
         side_effect="write",
         sensitive=True,  # a governed, tenant-bound proposal; fails closed on untrusted input
         description="Create a governed, tenant-isolated experiment proposal (budget-capped, audited).",
+    ),
+    "product.initiative.promote": ToolSpec(
+        name="product.initiative.promote",
+        handler=promote_initiative,
+        side_effect="write",
+        sensitive=True,  # governed, tenant-bound; fails closed on untrusted input
+        description="Promote a validated initiative into a charter-conformant product scaffold (audited).",
     ),
 }
 

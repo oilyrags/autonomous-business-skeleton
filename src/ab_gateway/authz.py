@@ -31,6 +31,9 @@ _GRANTS: dict[str, Grant] = {
     "executive.cmo_agent": Grant(authority_ceiling=3, businesses=frozenset({WILDCARD})),
     # Owns growth.experiment.create (PRD 0007); the growth operator acts across the portfolio.
     "growth.experiment_design_agent": Grant(authority_ceiling=3, businesses=frozenset({WILDCARD})),
+    # Owns product.initiative.promote (PRD 0008); Product Engineering acts across the portfolio
+    # (extend any business, mint new ones).
+    "product.engineering_agent": Grant(authority_ceiling=3, businesses=frozenset({WILDCARD})),
 }
 
 _DENY = Grant(authority_ceiling=0, businesses=frozenset())

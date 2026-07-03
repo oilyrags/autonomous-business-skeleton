@@ -191,6 +191,19 @@ class ExperimentCreated(Envelope):
     status: str = "proposed"
 
 
+class ProductScaffolded(Envelope):
+    """Product Engineering scaffolded a charter-conformant service for a promoted initiative
+    (PRD 0008). ``business_id`` is new (minted) or existing (extended)."""
+
+    business_id: str
+    initiative_id: str
+    product_id: str
+    classification: str  # new | extension
+    service_name: str
+    theme_name: str
+    file_count: int
+
+
 class ExperimentConcluded(Envelope):
     """The Experimentation & Growth context's decision on an experiment (scale/pivot/kill/
     continue). ``business_id`` scopes it to one business in the portfolio (multi-tenancy)."""

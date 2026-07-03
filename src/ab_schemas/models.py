@@ -37,6 +37,19 @@ class DecisionWrite(BaseModel):
     business_id: str | None = None  # scopes the decision to a business, when applicable
 
 
+class ProductInitiative(BaseModel):
+    """Args for the ``product.initiative.promote`` tool (PRD 0008): a validated growth outcome handed
+    to Product Engineering. ``business_id`` set → extend it; null → a new business is minted."""
+
+    initiative_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    hypothesis: str = ""
+    business_id: str | None = None
+    key_features: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
+    priority: str = "medium"
+
+
 class Arm(BaseModel):
     """A named variant of the experience under test (control, treatment…)."""
 

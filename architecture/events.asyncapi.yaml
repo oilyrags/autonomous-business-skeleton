@@ -107,6 +107,11 @@ channels:
     messages:
       PostMetricsCollected:
         $ref: '#/components/messages/PostMetricsCollected'
+  productScaffolded:
+    address: product.initiative.scaffolded
+    messages:
+      ProductScaffolded:
+        $ref: '#/components/messages/ProductScaffolded'
   experimentCreated:
     address: growth.experiment.created
     messages:
@@ -187,6 +192,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/postMetricsCollected'
+  publishProductScaffolded:
+    action: send
+    channel:
+      $ref: '#/channels/productScaffolded'
   publishExperimentCreated:
     action: send
     channel:
@@ -577,6 +586,26 @@ components:
               amountMinor: { type: integer, description: Money received, in integer minor units. }
               currency: { type: string, default: EUR }
               customerRef: { type: string }
+
+    ProductScaffolded:
+      name: ProductScaffolded
+      title: Product scaffolded
+      description: >
+        Product Engineering scaffolded a charter-conformant service for a promoted initiative
+        (PRD 0008). `businessId` is new (minted) or existing (extended).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, initiativeId, productId, classification, serviceName, themeName, fileCount]
+            properties:
+              businessId: { type: string }
+              initiativeId: { type: string }
+              productId: { type: string }
+              classification: { type: string, enum: [new, extension] }
+              serviceName: { type: string }
+              themeName: { type: string }
+              fileCount: { type: integer }
 
     ExperimentCreated:
       name: ExperimentCreated

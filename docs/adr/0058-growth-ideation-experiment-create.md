@@ -90,6 +90,16 @@ PRD 0007.
   form renders and a POST returns 200 with the created experiment id. 5 tests (build_proposal ×2,
   governed-port routing with real operator as maker, friendly budget error, read-only role 403).
 
+- **E3 (runner + decide loop):** `ab_growth/runner.py` — pure `assemble(record, control, variant)`
+  builds the control/treatment `Experiment` from live arm stats (`ArmStats`), and `run(...)` calls
+  the deterministic `decide` (the runner never rules itself). The experiment's own `budget_minor`
+  caps the effective experiment budget decide sees (never above the blueprint's), so a capped
+  experiment concludes through decide's budget-exhaustion path. `store.conclude(exp, decision)`
+  records status → concluded and publishes `ExperimentConcluded` (portfolio already folds it into
+  capital signals). 3 tests (SCALE on a clear win; per-experiment cap forces KILL below the blueprint
+  budget; infra-gated create→run→conclude loop). Verified live: the loop moves proposed → concluded
+  against real Postgres + bus.
+
 ## Rejected / deferred
 
 Ledger earmark of budget; N-arm `decide`; a deterministic Bayesian/sequential test; new registry

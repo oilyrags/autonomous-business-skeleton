@@ -14,7 +14,7 @@ from psycopg.types.json import Jsonb
 
 from ab_common import bus, db
 from ab_common.config import settings
-from ab_growth.experiment import to_created_event
+from ab_growth.experiment import Decision, Experiment, to_created_event, to_event
 from ab_schemas.models import ExperimentCreate
 
 
@@ -53,6 +53,22 @@ def create(proposal: ExperimentCreate, experiment_id: str, *, created_by: str) -
         event = to_created_event(proposal, experiment_id, producer=created_by)
         bus.publish(settings.experiment_topic, key=experiment_id, value=event.model_dump_json(by_alias=True))
     return applied
+
+
+def conclude(exp: Experiment, decision: Decision) -> None:
+    """Record the outcome (status → concluded) and publish `ExperimentConcluded` — which the
+    portfolio context already folds into capital signals (PRD 0007 E3). Idempotent on status."""
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE experiments SET status = 'concluded' WHERE experiment_id = %s", (exp.experiment_id,)
+        )
+        conn.commit()
+    event = to_event(exp, decision)
+    bus.publish(
+        settings.experiment_concluded_topic,
+        key=exp.experiment_id,
+        value=event.model_dump_json(by_alias=True),
+    )
 
 
 def _row_to_record(row: dict[str, Any]) -> ExperimentRecord:

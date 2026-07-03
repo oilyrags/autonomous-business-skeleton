@@ -28,6 +28,12 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     db.init_db()
     bus.ensure_topic(settings.decision_topic)
     bus.ensure_topic(settings.ledger_topic)
+    # Hydrate persisted model promotions into the serving registry (PRD 0009 S2), so an eval-promoted
+    # real model serves after a restart without re-running evals at boot.
+    from ab_evals import promotion_store
+    from ab_gateway import model_gateway
+
+    promotion_store.hydrate(model_gateway.PROMOTIONS)
     yield
 
 

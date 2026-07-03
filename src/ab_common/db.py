@@ -91,6 +91,16 @@ _DDL = [
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS model_promotions (
+        id            bigserial PRIMARY KEY,
+        task_profile  text NOT NULL,
+        model_version text NOT NULL,
+        eval_score    double precision NOT NULL,
+        decided_by    text NOT NULL,
+        promoted_at   timestamptz NOT NULL DEFAULT now()
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS product_initiatives (
         initiative_id text PRIMARY KEY,
         business_id   text NOT NULL,

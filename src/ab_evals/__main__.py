@@ -66,5 +66,31 @@ def main() -> int:
     return 0 if ok else 1
 
 
+def promote(task_profile: str) -> int:
+    """`python -m ab_evals promote <task_profile>` — evaluate the SERVED model (AB_MODEL_PROVIDER)
+    against the profile's eval suite once and, if it passes the gate, record a persisted, audited
+    promotion (PRD 0009 S2). Exits non-zero (nothing recorded) if the profile is unknown or the model
+    is blocked — the eval gate is never bypassed."""
+    from ab_evals import promotion_store
+    from ab_gateway import providers
+
+    eval_set = SUITES.get(task_profile)
+    if eval_set is None:
+        print(f"unknown task profile {task_profile!r}; known: {', '.join(sorted(SUITES))}")
+        return 2
+    model = providers.select_model()
+    decision = evaluate_and_gate(model, eval_set)
+    if not decision.promoted:
+        print(f"[BLOCK] {model.version} @ {task_profile}: {decision.reason} — not recorded")
+        return 1
+    promotion_store.record(
+        task_profile, model.version, eval_score=decision.report.score, decided_by="ops.eval_promote"
+    )
+    print(f"[PROMOTED] {model.version} @ {task_profile}: {decision.reason} — recorded + ModelPromoted")
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "promote":
+        sys.exit(promote(sys.argv[2]))
     sys.exit(main())

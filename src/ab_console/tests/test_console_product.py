@@ -85,3 +85,13 @@ def test_a_read_only_role_cannot_approve() -> None:
     }
     with TestClient(app, headers=viewer) as c:
         assert c.post("/product/approve", data={"initiative_id": "i1", "stage": "dpia"}).status_code == 403
+
+
+def test_metrics_surfaces_product_kpis_for_grafana() -> None:
+    from ab_console.app import app
+
+    with TestClient(app) as anon:  # /metrics is the open M5 scrape target
+        body = anon.get("/metrics").text
+    assert "ab_product_initiatives{business_id=" in body
+    assert "ab_product_awaiting_human{business_id=" in body
+    assert "ab_product_launched{business_id=" in body

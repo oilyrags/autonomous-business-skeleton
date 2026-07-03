@@ -54,6 +54,7 @@ from ab_monitor.prometheus import CONTENT_TYPE as PROMETHEUS_CONTENT_TYPE
 from ab_monitor.prometheus import exposition
 from ab_obs.core import Anomaly, AnomalyKind, BusinessSnapshot
 from ab_ops.reliability import ErrorBudget
+from ab_product.kpis import product_gauges, product_kpis
 from ab_product.pipeline import PipelineState, Stage
 
 _DIR = Path(__file__).parent
@@ -662,10 +663,11 @@ def metrics(
     checks: Annotated[list[CheckResult], Depends(checks_provider)],
     snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
     experiments: Annotated[list[ExperimentRecord], Depends(experiment_records_provider)],
+    initiatives: Annotated[list[PipelineState], Depends(product_initiatives_provider)],
 ) -> Response:
-    """Prometheus scrape target: the same checks + business reads + experiment KPIs, as gauges
-    (M5 rail; E6 adds `ab_experiment_*`). One definition per signal — Nagios and Prometheus both
-    consume the deterministic ab_monitor/ab_obs/ab_growth sources.
+    """Prometheus scrape target: checks + business reads + experiment KPIs + product KPIs, as gauges
+    (M5 rail; E6 adds `ab_experiment_*`, P6 adds `ab_product_*`). One definition per signal — Nagios
+    and Prometheus both consume the deterministic ab_monitor/ab_obs/ab_growth/ab_product sources.
 
     Intentionally NOT behind the operator auth (VULN-001): Prometheus scrapes it machine-to-machine
     and cannot present a signed operator identity. It exposes only aggregate business gauges (no
@@ -673,4 +675,5 @@ def metrics(
     as the monitoring compose profile does), or front it with a scrape credential in the proxy."""
     body = exposition(checks, snapshots)
     body += "\n".join(experiment_gauges(experiment_kpis(experiments))) + "\n"  # E6 growth KPIs
+    body += "\n".join(product_gauges(product_kpis(initiatives))) + "\n"  # P6 product KPIs
     return Response(content=body, media_type=PROMETHEUS_CONTENT_TYPE)

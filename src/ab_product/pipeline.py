@@ -80,7 +80,13 @@ def advance(state: PipelineState, gate: GateResult) -> PipelineState:
 
 
 def approve_human(state: PipelineState, *, actor: str) -> PipelineState:
-    """Record a human approval at a DPIA/launch gate and move to the next stage."""
+    """Record a plain human approval at a human gate (e.g. launch) and move to the next stage.
+
+    The DPIA gate is deliberately NOT resolvable here: it must run the personal-data assessment, so
+    it can only be cleared via `ab_product.compliance.clear_dpia` — otherwise a personal-data
+    initiative could be waved through the gate without a DPIA. Any other human gate approves here."""
+    if state.stage is Stage.DPIA:
+        raise ValueError("the DPIA gate must be resolved via ab_product.compliance.clear_dpia")
     if state.status != "awaiting_human":
         raise ValueError(f"no human approval pending at {state.stage}/{state.status}")
     nxt = _next(state.stage)

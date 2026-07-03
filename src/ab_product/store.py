@@ -63,16 +63,32 @@ def create(initiative_id: str, business_id: str, title: str) -> PipelineState:
     return state
 
 
-def save(state: PipelineState) -> None:
-    """Persist a transition (stage/status/reason) and publish `ProductStageChanged`."""
+def save(state: PipelineState) -> bool:
+    """Persist a transition (stage/status/reason) and publish `ProductStageChanged` — but only on a
+    real change. Idempotent: the UPDATE only touches a row whose (stage, status, reason) actually
+    differs, and the event is published **only on a real transition** — so a retry / replay / re-save
+    of the same state does not emit a duplicate `ProductStageChanged` (which would double-count in the
+    KPI gauges and the data projections), and saving an unknown initiative is a no-op. Returns True
+    iff this call changed the persisted row."""
     with db.connect() as conn:
-        conn.execute(
+        cur = conn.execute(
             "UPDATE product_initiatives SET stage = %s, status = %s, reason = %s, updated_at = now() "
-            "WHERE initiative_id = %s",
-            (state.stage.value, state.status, state.reason, state.initiative_id),
+            "WHERE initiative_id = %s AND (stage, status, reason) IS DISTINCT FROM (%s, %s, %s)",
+            (
+                state.stage.value,
+                state.status,
+                state.reason,
+                state.initiative_id,
+                state.stage.value,
+                state.status,
+                state.reason,
+            ),
         )
+        transitioned = cur.rowcount == 1
         conn.commit()
-    _publish(state)
+    if transitioned:
+        _publish(state)
+    return transitioned
 
 
 def get(initiative_id: str) -> PipelineState | None:

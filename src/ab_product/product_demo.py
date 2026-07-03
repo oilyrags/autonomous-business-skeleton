@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from ab_product.blueprint import StubProductModel
 from ab_product.charter import BusinessCharter, charter_conformance
 from ab_product.classify import classify
+from ab_product.compliance import clear_dpia, requires_dpia
 from ab_product.deployer import StubDeployer
 from ab_product.pipeline import GateResult, Stage, advance, approve_human, start
 from ab_product.scaffold import scaffold
@@ -38,10 +39,16 @@ class ProductDemoSummary:
 
 
 def _drive_to_launched(initiative_id: str, business_id: str, echo) -> bool:  # type: ignore[no-untyped-def]
-    """Advance the gated SDLC to launched, approving the DPIA + launch human gates."""
+    """Advance the gated SDLC to launched, resolving the DPIA (through the compliance gate) + launch
+    human gates. The DPIA gate runs the personal-data check — this initiative processes health data,
+    so it needs a recorded DPO sign-off; it cannot be waved through with a plain approval."""
     state = start(initiative_id, business_id)
     while state.status != "launched":
-        if state.status == "awaiting_human":
+        if state.stage is Stage.DPIA:
+            need = "signed by DPO" if requires_dpia(INITIATIVE) else "not required"
+            echo(f"    [dpia] compliance gate → DPIA {need}")
+            state = clear_dpia(state, INITIATIVE, approver="dpo")
+        elif state.status == "awaiting_human":
             echo(f"    [{state.stage.value}] human gate → approved")
             state = approve_human(state, actor="operator")
         else:

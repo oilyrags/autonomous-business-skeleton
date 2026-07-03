@@ -3,7 +3,7 @@ daisyUI product service, themed by the BusinessCharter and conformant by constru
 
 from __future__ import annotations
 
-from ab_product.blueprint import StubProductModel
+from ab_product.blueprint import ProductBlueprint, StubProductModel
 from ab_product.charter import BusinessCharter, charter_conformance
 from ab_product.scaffold import scaffold
 from ab_schemas.models import ProductInitiative
@@ -32,3 +32,21 @@ def test_two_businesses_get_distinctly_themed_scaffolds() -> None:
     plan_b = scaffold(*_blueprint_and_charter("beta"))  # type: ignore[arg-type]
     idx = lambda p: next(f.content for f in p.files if f.path.endswith("index.html"))  # noqa: E731
     assert idx(plan_a) != idx(plan_b)  # distinct design language per business, in the shipped UI
+
+
+def test_blueprint_content_is_html_escaped_in_the_generated_page() -> None:
+    # name/summary/features originate from the LLM (or the initiative); a script payload must be
+    # rendered as inert text, never as live markup in the shipped service.
+    _, charter = _blueprint_and_charter("evil-co")
+    blueprint = ProductBlueprint(
+        business_id="evil-co",
+        name="<script>steal()</script>",
+        summary="<img src=x onerror=alert(1)>",
+        features=["<b>drop</b>"],
+        design_tokens=charter.tokens,
+    )
+    index = next(f.content for f in scaffold(blueprint, charter).files if f.path.endswith("index.html"))
+    assert "<script>steal()</script>" not in index  # not live markup
+    assert "&lt;script&gt;steal()&lt;/script&gt;" in index  # rendered as inert text
+    assert "<img src=x" not in index  # the injected tag is neutralized (angle brackets escaped)
+    assert "&lt;img src=x onerror=alert(1)&gt;" in index

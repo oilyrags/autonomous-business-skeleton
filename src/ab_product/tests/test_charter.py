@@ -3,12 +3,16 @@ machine-checkable tech charter, enforced by charter_conformance (PRD 0008 P1a). 
 
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
 from ab_product.charter import (
     Artifact,
     BusinessCharter,
     DesignTokens,
     TechCharter,
     charter_conformance,
+    default_tokens,
     is_consistent_extension,
     render_theme,
 )
@@ -101,3 +105,26 @@ def test_a_recoloured_theme_is_not_a_consistent_extension() -> None:
     v1 = _charter("rocketco", "#0a84ff", version=1)
     recoloured = _charter("rocketco", "#ff0000", version=2)  # changed the primary colour
     assert is_consistent_extension(v1, recoloured) is False  # contradicts the design language
+
+
+def test_a_design_token_that_could_break_out_of_the_css_is_rejected() -> None:
+    # A design token flows verbatim into the generated theme's CSS; a value carrying CSS/HTML
+    # metacharacters must be refused at construction, before it can ever reach a shipped page.
+    with pytest.raises(ValidationError):
+        _charter("rocketco", "red}</style><script>alert(1)</script>")
+
+
+def test_a_business_id_that_is_not_a_slug_is_rejected() -> None:
+    # business_id becomes the daisyUI theme-name (a CSS selector + an HTML attribute); it must be a
+    # slug so it cannot break out of either.
+    with pytest.raises(ValidationError):
+        _charter('x"]{}<script>', "#0a84ff")
+
+
+def test_default_tokens_are_distinct_across_more_than_the_primary() -> None:
+    a, b = default_tokens("alpha"), default_tokens("beta")
+    # each business is visibly distinct, not just in the primary colour (the headline requirement)
+    assert a.primary != b.primary
+    assert a.accent != b.accent
+    assert a.neutral != b.neutral
+    assert a.base_100 != b.base_100

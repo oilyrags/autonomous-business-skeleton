@@ -12,12 +12,22 @@ charter (a new version, append-only) — they can grow the language, never contr
 from __future__ import annotations
 
 import hashlib
+import re
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # The architecture rules the skeleton mandates for every product (baked into a charter's defaults).
 _DEFAULT_RULES = frozenset({"business_id_tenancy", "ports_and_stubs", "single_governed_ingress"})
 _DEFAULT_DEPS = frozenset({"fastapi", "uvicorn", "jinja2", "pydantic", "psycopg"})
+
+# A token value flows verbatim into the generated theme's CSS. Restrict it to characters valid in a
+# CSS colour / font-stack / keyword so it can never carry the `;{}<>"'` metacharacters that would
+# break out of the declaration or the surrounding <style> element (defence in depth with the HTML
+# escaping the Scaffolder also applies). Allows hex, rgb()/oklch(), named colours, and font stacks.
+_CSS_SAFE = re.compile(r"^[A-Za-z0-9 #%.,()-]+$")
+# business_id becomes the daisyUI theme-name — a CSS attribute-selector value AND an HTML attribute —
+# so it must be a slug (which is exactly what `classify` mints and what the ledger stores).
+_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
 class DesignTokens(BaseModel):
@@ -31,6 +41,13 @@ class DesignTokens(BaseModel):
     radius_rem: float = Field(gt=0)
     font_family: str
     density: str = "comfortable"  # comfortable | compact
+
+    @field_validator("primary", "secondary", "accent", "neutral", "base_100", "font_family", "density")
+    @classmethod
+    def _css_safe(cls, value: str) -> str:
+        if not _CSS_SAFE.fullmatch(value):
+            raise ValueError(f"token value is not CSS-safe: {value!r}")
+        return value
 
 
 class TechCharter(BaseModel):
@@ -48,6 +65,13 @@ class BusinessCharter(BaseModel):
     version: int = Field(ge=1)
     tokens: DesignTokens
     tech: TechCharter = TechCharter()
+
+    @field_validator("business_id")
+    @classmethod
+    def _slug_only(cls, value: str) -> str:
+        if not _SLUG.fullmatch(value):
+            raise ValueError(f"business_id must be a slug ([a-z0-9-]): {value!r}")
+        return value
 
     @property
     def theme_name(self) -> str:
@@ -113,16 +137,24 @@ def charter_conformance(artifact: Artifact, charter: BusinessCharter) -> Conform
     return ConformanceReport(ok=not violations, violations=tuple(violations))
 
 
+def _dark(hex6: str) -> str:
+    """Darken a 6-hex colour toward black (halve each channel) so surfaces stay legible under light
+    text — used for the neutral/base surfaces, which must be dark whatever the business's hue."""
+    r, g, b = (int(hex6[i : i + 2], 16) // 3 for i in (0, 2, 4))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 def default_tokens(business_id: str) -> DesignTokens:
-    """Deterministic, per-business design tokens (a distinct primary/accent seeded from the id) —
-    the default design language shared by the Scaffolder and the console's theme preview."""
+    """Deterministic, per-business design tokens — a distinct primary/secondary/accent and distinct
+    (but always dark, for legibility) neutral/base surfaces, all seeded from the id. The default
+    design language shared by the Scaffolder and the console's theme preview."""
     h = hashlib.sha256(business_id.encode()).hexdigest()
     return DesignTokens(
         primary=f"#{h[0:6]}",
-        secondary="#1f2937",
-        accent=f"#{h[6:12]}",
-        neutral="#111827",
-        base_100="#0b0c0e",
+        secondary=f"#{h[6:12]}",
+        accent=f"#{h[12:18]}",
+        neutral=_dark(h[18:24]),
+        base_100=_dark(h[24:30]),
         radius_rem=0.5,
         font_family="Inter, system-ui, sans-serif",
         density="comfortable",

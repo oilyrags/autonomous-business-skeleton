@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from html import escape
 from typing import Protocol
 
 from ab_product.blueprint import ProductBlueprint
@@ -52,15 +53,18 @@ class StubScaffoldWriter:
 
 
 def _index_html(blueprint: ProductBlueprint, charter: BusinessCharter) -> str:
+    # name/summary/features originate from the LLM (or the promoted initiative) — untrusted content.
+    # Escape every interpolated field so it renders as inert text, never as live markup, in the
+    # shipped service. The theme + theme_name are safe by construction (CSS-safe tokens; slug id).
     theme = render_theme(charter)
-    features = "".join(f"<li>{f}</li>" for f in blueprint.features)
+    features = "".join(f"<li>{escape(f)}</li>" for f in blueprint.features)
     return (
         f'<!doctype html><html data-theme="{charter.theme_name}">\n'
         f'<head><meta charset="utf-8"><style>\n{theme}</style></head>\n'
         f'<body class="min-h-screen bg-base-100">\n'
         f'  <main class="p-8">\n'
-        f'    <h1 class="text-3xl font-semibold text-primary">{blueprint.name}</h1>\n'
-        f'    <p class="opacity-70 mt-1">{blueprint.summary}</p>\n'
+        f'    <h1 class="text-3xl font-semibold text-primary">{escape(blueprint.name)}</h1>\n'
+        f'    <p class="opacity-70 mt-1">{escape(blueprint.summary)}</p>\n'
         f'    <ul class="menu mt-4">{features}</ul>\n'
         f"  </main>\n</body></html>\n"
     )

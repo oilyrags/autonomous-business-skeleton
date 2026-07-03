@@ -8,7 +8,7 @@ initiative with no personal data auto-clears the DPIA stage deterministically. P
 
 from __future__ import annotations
 
-from ab_product.pipeline import PipelineState, Stage, approve_human
+from ab_product.pipeline import PipelineState, Stage
 from ab_schemas.models import ProductInitiative
 
 # Personal-data signals that trigger a DPIA (the CLO/DPO concern; a real deployment consults the
@@ -51,4 +51,12 @@ def clear_dpia(
         )
     if approver is None:
         return state  # blocked: personal data needs a human DPIA sign-off before launch
-    return approve_human(state, actor=f"DPIA:{approver}")
+    # Personal data + a recorded human sign-off → advance past DPIA. This is the ONLY path past the
+    # gate (pipeline.approve_human refuses Stage.DPIA), so a DPIA can never be skipped.
+    return PipelineState(
+        state.initiative_id,
+        state.business_id,
+        Stage.BLUEPRINT,
+        "in_progress",
+        reason=f"DPIA approved by {approver}",
+    )

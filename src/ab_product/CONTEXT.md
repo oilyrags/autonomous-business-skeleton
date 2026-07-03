@@ -26,3 +26,31 @@ _Avoid_: lint, review (this is the deterministic gate)
 **Consistent Extension**:
 A new charter version that grows the tech charter (rules/deps as supersets) while keeping the design language identical — the only legal way a business changes. A recoloured theme or a dropped rule is a contradiction, not an extension.
 _Avoid_: update, migration
+
+**Product Initiative**:
+A validated growth outcome promoted for engineering (title, hypothesis, features, constraints; a business_id when extending). The unit the pipeline drives.
+_Avoid_: ticket, feature request
+
+**Classification**:
+The deterministic decision — new business (mint a business_id) vs extension of an existing one. Never an LLM decision.
+_Avoid_: routing, triage
+
+**Product Blueprint**:
+The typed engineering spec the LLM fills through a port (features, screens, design tokens); deterministically validated before the Scaffolder uses it.
+_Avoid_: spec, plan (informally)
+
+**Scaffolder**:
+The deterministic generator that writes a business_id-scoped, charter-conformant FastAPI + vendored-daisyUI service from a blueprint + charter. The LLM never writes this code.
+_Avoid_: generator, codegen (when you mean this pure component)
+
+**Stage / Gate**:
+A step in the gated SDLC (intake → spec → design → dpia → blueprint → scaffold → qa → launch → launched) and the deterministic-or-human condition that admits it. A failed gate halts the initiative.
+_Avoid_: phase, step (loosely)
+
+**DPIA Gate**:
+The human Data Protection Impact Assessment gate. A personal-data initiative cannot reach launch until a human DPIA sign-off is recorded; a non-personal-data one auto-clears deterministically.
+_Avoid_: privacy check, review
+
+**Launch Gate**:
+The human launch approval (CEO/CISO) that ships a product. The last gate before `launched`.
+_Avoid_: release, deploy (deploy is the mechanical step after launch)

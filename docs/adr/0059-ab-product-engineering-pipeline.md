@@ -76,3 +76,27 @@ Shipping raw LLM code; per-business repos/stacks; docs-only design conventions; 
 no-human-gate pipeline. Deferred: LLM-authored leaf logic behind generated tests; external (k8s/
 cloud) deploy adapters; the full 15-stage business-formation pipeline (reuse existing contexts);
 multi-service products. Each is logged in PRD 0008 rather than silently dropped.
+
+## Shipped (P1a–P7 — PRD 0008 complete)
+
+- **P1a** — `charter.py`: `BusinessCharter` (design tokens + tech charter, versioned, `extend()`
+  append-only), `render_theme` (deterministic per-`business_id` daisyUI theme CSS), pure
+  `charter_conformance` gate, `default_tokens` (hashlib-seeded distinct tokens per business).
+- **P1b** — the tracer bullet: `classify` (new-business vs extension), `blueprint.py`
+  (`ProductBlueprint` + `ProductModel` port + `StubProductModel`), `scaffold.py` (`scaffold` emits a
+  themed FastAPI service + Dockerfile + compose fragment), and the governed
+  `product.initiative.promote` gateway tool (registry `write`/`sensitive` + OPA rule + `authz` grant).
+- **P2** — `pipeline.py` (pure `Stage`/`Gate` state machine, `advance`/`approve_human`,
+  `HUMAN_STAGES = {DPIA, LAUNCH}`) + `store.py` (`product_initiatives` table, `ProductStageChanged`).
+- **P3** — the console `/product` workspace (daisyUI, operator-authed per VULN-001) with theme
+  swatches and human launch/DPIA approval through a governed `ProductPort` (stub + Http adapter).
+- **P4** — `deployer.py` (`Deployer` port, `StubDeployer` = render-smoke, `deploy_product`
+  → `ProductDeployed`); the scaffold emits a `Dockerfile` + compose fragment for the `ventures` profile.
+- **P5** — `ModelGatewayProductModel` (degrade-safe LLM blueprint/design adapter) + the
+  `make product` / `./abctl product` end-to-end demo.
+- **P6** — `kpis.py` (`product_kpis` + `product_gauges`) on the console `/metrics` (M5 rail) +
+  Grafana fleet-overview panels 11–12.
+- **P7** — `compliance.py`: the DPIA gate (`requires_dpia` flags personal-data initiatives;
+  `clear_dpia` blocks them at the DPIA stage until a human sign-off is recorded, auto-clears the
+  rest); closing docs (CONTEXT.md glossary, CONTEXT-MAP entry + engineering-loop relationship,
+  instantiation-guide cross-reference); PRD marked complete.

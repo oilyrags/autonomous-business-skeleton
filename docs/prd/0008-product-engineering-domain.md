@@ -6,7 +6,7 @@
 > (tool registry + `authz` + OPA, ADR-0057), `ab_ledger`/`ab_audit`/`ab_data`, `ab_console`
 > (design system, ADR-0056 v0.3, operator auth VULN-001), `ab_monitor` (M5), `ab_mvp` (Deployer
 > port), and `architecture/14_instantiation_guide.md` (stages 8–9). Tracker: no `gh` → issues under
-> `.scratch/product/`.
+> `.scratch/product/`. **Status: P1a–P7 shipped — complete.**
 
 ## Problem statement
 

@@ -1,6 +1,6 @@
 # Context Map
 
-The reusable operating system of an AI-run business, now realized as **27 bounded contexts** under
+The reusable operating system of an AI-run business, now realized as **28 bounded contexts** under
 `src/`. This map is the entry point: it lists the contexts, the shared language that spans them, and
 the key integration flows. Each context owns a tight local glossary in its own `CONTEXT.md`.
 
@@ -58,6 +58,7 @@ _Avoid_: MVP, prototype, spike (those imply throwaway or scope, not a load-beari
 
 ### Growth & portfolio
 - [ab_growth](./src/ab_growth/CONTEXT.md) — the experimentation engine (A/B → scale/pivot/kill) + Blueprint
+- [ab_product](./src/ab_product/CONTEXT.md) — Product Engineering: promote an initiative → charter-conformant scaffold → gated SDLC → deployed service
 - [ab_factory](./src/ab_factory/CONTEXT.md) — instantiates a business behind a readiness gate, funded with capital
 - [ab_portfolio](./src/ab_portfolio/CONTEXT.md) — capital allocation across businesses (recycle losers into winners)
 - [ab_playbook](./src/ab_playbook/CONTEXT.md) — Living Playbooks: distil winners into reusable blueprints
@@ -102,6 +103,12 @@ _Avoid_: MVP, prototype, spike (those imply throwaway or scope, not a load-beari
   gates allocation). `ab_obs` reads the same ledger for the fleet overview.
 - **The growth loop**: `ab_growth` concludes experiments (`ExperimentConcluded`) → `ab_portfolio`
   rolls them into `BusinessPerformance`; `ab_playbook` distils winning `Blueprint`s.
+- **The engineering loop** (PRD 0008): a validated initiative → `ab_product` (`product.initiative.promote`)
+  classifies new-business/extension, the LLM proposes a `ProductBlueprint`, a deterministic
+  `Scaffolder` emits a `business_id`-scoped FastAPI + vendored-daisyUI service themed by the
+  business's `BusinessCharter` (its enforced, distinct design language), a `charter_conformance` gate
+  admits it, the gated SDLC runs with human DPIA + launch gates, and a `Deployer` ships it into the
+  mesh; KPIs surface on the M5 rail. Every addition to a business must conform to its charter.
 - **The marketing loop**: `ab_social` plans/generates/QA-gates/publishes content
   (`ContentPublished` → `PostMetricsCollected`), reuses `ab_growth` to optimise and `ab_playbook`
   to distil, gates publishing via `ab_org`, and boosts via `ab_ads`.

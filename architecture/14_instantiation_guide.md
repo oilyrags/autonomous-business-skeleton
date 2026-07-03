@@ -36,6 +36,12 @@ Each stage is a Workflow with a gate; failing a gate halts the venture.
 | 15. Launch gate | All gates green + kill switch verified | CEO + CISO | **launch approval (human)** |
 | Post | Scale / pivot / kill criteria | CEO portfolio review | quarterly gate |
 
+> **Realized:** stages 8–9 (Product prototype → MVP build) are implemented by the **`ab_product`**
+> context (PRD 0008 / ADR-0059) — `product.initiative.promote` → classify → LLM-proposed
+> `ProductBlueprint` → deterministic `Scaffolder` (a charter-conformant, business_id-scoped FastAPI +
+> vendored-daisyUI service) → `charter_conformance` gate → the gated SDLC with human DPIA + launch
+> gates → `Deployer`. Each business carries an enforced, distinct design language (its `BusinessCharter`).
+
 **Scale / pivot / kill criteria** (set at launch, reviewed quarterly): e.g. scale if payback < target & retention > threshold for 2 cohorts; pivot if activation < floor but demand signal strong; kill if unit economics negative with no path after N cycles. Recorded as a `Decision`.
 
 ---

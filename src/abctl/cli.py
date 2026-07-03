@@ -17,6 +17,7 @@ from collections.abc import Sequence
 # name -> (module with a main() in its __main__, one-line description)
 COMMANDS: dict[str, tuple[str, str]] = {
     "growth": ("ab_growth.__main__", "experiments decide scale/pivot/kill per business"),
+    "ideate": ("ab_growth.ideate_demo", "ideation → scored → gated → governed experiment"),
     "factory": ("ab_factory.__main__", "provision + readiness-gate new businesses"),
     "portfolio": ("ab_portfolio.__main__", "recycle capital from losers into winners"),
     "econ": ("ab_econ.__main__", "unit economics: profit/CAC/LTV/payback per business"),

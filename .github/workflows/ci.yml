@@ -32,6 +32,8 @@ jobs:
         run: make failsim
       - name: Growth engine (experiment scale/pivot/kill decisions)
         run: make growth
+      - name: Ideation engine (ground -> score -> gate -> governed experiment)
+        run: make ideate
       - name: Business factory (provision + readiness gate)
         run: make factory
       - name: Portfolio allocation (capital recycle recommendations)

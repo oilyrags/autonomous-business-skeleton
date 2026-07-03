@@ -14,7 +14,7 @@ applies), and real grounding behind `GroundingSource`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
 
@@ -113,6 +113,16 @@ class IdeationModel(Protocol):
     def propose(self, business_id: str, grounding: GroundingReport, count: int) -> list[IdeaCandidate]: ...
 
 
+class ExperimentProposer(Protocol):
+    """Dispatch a PROCEED idea's experiment through the governed path. Returns the experiment_id.
+
+    A real adapter is the console's `HttpGrowthPort` / a gateway client calling
+    `growth.experiment.create` under `growth.experiment_design_agent` — kept as a port here so the
+    growth context never depends on the gateway/console (no import cycle)."""
+
+    def create(self, proposal: ExperimentCreate, *, maker: str) -> str: ...
+
+
 # --- Pure scoring + gate (replayable; the LLM's scores are the only model-authored input) -----------
 
 
@@ -157,6 +167,13 @@ def ideate(
     return IdeationResult(business_id=business_id, grounding=report, judged=judged)
 
 
+def propose_ideas(result: IdeationResult, *, proposer: ExperimentProposer, maker: str) -> list[str]:
+    """Dispatch every PROCEED idea's embedded experiment through the governed proposer (E5). Only
+    gated-PROCEED ideas reach the create tool; the maker (the requesting operator/agent) is carried
+    through for audit. Returns the created experiment ids."""
+    return [proposer.create(candidate.experiment, maker=maker) for candidate in result.proceed]
+
+
 # --- Stubs (deterministic CI) ----------------------------------------------------------------------
 
 
@@ -172,6 +189,48 @@ class StubGroundingSource:
             relevant_prior_experiments=["exp-042: friction removal won (+18%)"],
             recommended_focus_areas=["reduce time-to-value"],
         )
+
+
+@dataclass
+class StubExperimentProposer:
+    """Records governed proposals for tests + the demo; returns a deterministic id. A real adapter
+    dispatches through the gateway's `growth.experiment.create`."""
+
+    created: list[dict[str, object]] = field(default_factory=list)
+
+    def create(self, proposal: ExperimentCreate, *, maker: str) -> str:
+        self.created.append(
+            {"business_id": proposal.business_id, "hypothesis": proposal.hypothesis, "maker": maker}
+        )
+        return f"exp_ideate_{len(self.created)}"
+
+
+class ModelGatewayIdeationModel:
+    """The real LLM adapter: propose candidates via `model_gateway` (Portkey/GLM behind the eval
+    gate). Degrades safely — when no eval-gated model is promoted, `model_gateway.complete` returns
+    a fallback string, so we return no ideas rather than fabricate un-grounded ones."""
+
+    def __init__(self, task_profile: str = "ideation") -> None:
+        self._task_profile = task_profile
+
+    def propose(self, business_id: str, grounding: GroundingReport, count: int) -> list[IdeaCandidate]:
+        import json
+
+        from ab_gateway import model_gateway
+
+        prompt = (
+            f"Generate {count} grounded, experiment-ready product ideas for business '{business_id}'. "
+            f"Grounding: {grounding.model_dump_json()}. Return a JSON array matching the IdeaCandidate "
+            "schema (idea_id, title, expected_impact, grounding_sources, scores, experiment)."
+        )
+        raw = model_gateway.complete(self._task_profile, prompt)
+        if raw.startswith("[fallback:"):  # no eval-gated model — abstain, do not fabricate
+            return []
+        try:
+            payload = json.loads(raw)
+            return [IdeaCandidate.model_validate(item) for item in payload][:count]
+        except (json.JSONDecodeError, ValueError):
+            return []  # malformed model output is dropped, never guessed
 
 
 def _experiment(business_id: str, hypothesis: str, budget_minor: int) -> ExperimentCreate:

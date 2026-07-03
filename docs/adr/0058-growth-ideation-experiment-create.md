@@ -111,6 +111,16 @@ PRD 0007.
   gate PROCEED/REFINE/KILL; only grounded high-scorers proceed). The real GLM-5.2 adapter behind
   `IdeationModel` lands in E5 (wiring + demo).
 
+- **E5 (wire ideation → governed create + demo):** an `ExperimentProposer` port (kept in
+  `ab_growth` so the growth context never depends on the gateway/console — no import cycle) +
+  `propose_ideas(result, proposer, maker)` dispatches **only** the gated-PROCEED ideas' embedded
+  experiments through the governed path, carrying the maker for audit. A real
+  `ModelGatewayIdeationModel` (over `model_gateway`/Portkey behind the eval gate) that **degrades
+  safely** — abstains to no ideas when no model is promoted or the output is malformed, never
+  fabricating. `make ideate` / `./abctl ideate` demo (ground → generate → score → gate → governed
+  experiment) + CI step. 4 tests (propose_ideas dispatches only PROCEED with maker attribution; real
+  model abstains; demo creates exactly the PROCEED experiments; CLI exits 0).
+
 ## Rejected / deferred
 
 Ledger earmark of budget; N-arm `decide`; a deterministic Bayesian/sequential test; new registry

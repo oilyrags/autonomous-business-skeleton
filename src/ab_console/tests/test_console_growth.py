@@ -132,11 +132,16 @@ def test_ideation_workspace_maps_verdicts_to_badges_and_gates_propose() -> None:
     assert ungrounded.can_propose is False
 
 
-def test_growth_workspace_page_renders_the_panels(client: TestClient) -> None:
+def test_growth_get_shows_the_trigger_not_a_live_ideation_run(client: TestClient) -> None:
     body = client.get("/growth").text
-    assert "Ideate" in body and "Open experiments" in body
-    assert "badge-success" in body  # a PROCEED verdict chip
-    assert "advisory" in body.lower()  # the advisory narrative is labelled, distinct from verdicts
+    assert "Run ideation" in body and "Open experiments" in body  # trigger + panels
+    assert "advisory" not in body.lower()  # GET does NOT run ideation (no LLM call, no candidate cards)
+
+
+def test_growth_ideate_runs_on_trigger_and_shows_gated_cards(client: TestClient) -> None:
+    body = client.post("/growth/ideate", data={"business_id": "rocket", "prompt": "reduce drop-off"}).text
+    assert "advisory" in body.lower()  # candidate cards appear only after the explicit run
+    assert "proceed" in body.lower()  # a PROCEED verdict chip, distinct from the advisory narrative
 
 
 def test_growth_workspace_requires_auth() -> None:

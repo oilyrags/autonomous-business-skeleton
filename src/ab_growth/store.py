@@ -56,21 +56,30 @@ def create(proposal: ExperimentCreate, experiment_id: str, *, created_by: str) -
     return applied
 
 
-def conclude(exp: Experiment, decision: Decision) -> None:
+def conclude(exp: Experiment, decision: Decision) -> bool:
     """Record the outcome (status → concluded) and publish `ExperimentConcluded` — which the
-    portfolio context already folds into capital signals (PRD 0007 E3). Idempotent on status."""
+    portfolio context folds into capital signals (PRD 0007 E3).
+
+    Idempotent: the UPDATE only transitions an experiment that is not already concluded, and the
+    event is published **only on a real transition** — so a retry / replay / re-run does not emit a
+    duplicate `ExperimentConcluded` (which would double-count the outcome in the portfolio rollup),
+    and concluding an unknown experiment is a no-op. Returns True iff this call concluded it."""
     with db.connect() as conn:
-        conn.execute(
-            "UPDATE experiments SET status = 'concluded', decision = %s WHERE experiment_id = %s",
+        cur = conn.execute(
+            "UPDATE experiments SET status = 'concluded', decision = %s "
+            "WHERE experiment_id = %s AND status <> 'concluded'",
             (decision.action.value, exp.experiment_id),
         )
+        transitioned = cur.rowcount == 1
         conn.commit()
-    event = to_event(exp, decision)
-    bus.publish(
-        settings.experiment_concluded_topic,
-        key=exp.experiment_id,
-        value=event.model_dump_json(by_alias=True),
-    )
+    if transitioned:
+        event = to_event(exp, decision)
+        bus.publish(
+            settings.experiment_concluded_topic,
+            key=exp.experiment_id,
+            value=event.model_dump_json(by_alias=True),
+        )
+    return transitioned
 
 
 _COLS = "experiment_id, business_id, hypothesis, arms, budget_minor, status, decision"

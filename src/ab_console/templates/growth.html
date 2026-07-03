@@ -6,7 +6,24 @@
 
   {# --- Ideate panel --- #}
   <section class="mb-8">
-    <h2 class="text-lg font-medium mb-1">Ideate for {{ view.business_id }}</h2>
+    <h2 class="text-lg font-medium mb-1">Ideate</h2>
+    <p class="text-sm opacity-60 mb-3">Pick a business and run ideation to generate grounded, gated candidates. In a live deploy this is an LLM call, so it runs only on this explicit trigger &mdash; never on page load.</p>
+
+    <form method="post" action="/growth/ideate" class="flex flex-wrap items-end gap-3 mb-5 max-w-2xl">
+      <label class="form-control">
+        <span class="label-text text-xs opacity-60 mb-1">Business</span>
+        <select class="select select-bordered" name="business_id">
+          {% for b in businesses %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="form-control flex-1 min-w-48">
+        <span class="label-text text-xs opacity-60 mb-1">Prompt</span>
+        <input class="input input-bordered" name="prompt" placeholder="reduce onboarding drop-off">
+      </label>
+      <button type="submit" class="btn btn-primary">Run ideation</button>
+    </form>
+
+  {% if view %}
     <p class="text-sm opacity-60 mb-4"><span class="badge badge-ghost badge-sm align-middle">grounding</span> {{ view.grounding_summary }}</p>
 
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -57,6 +74,7 @@
         </div>
       {% endfor %}
     </div>
+  {% endif %}
   </section>
 
   {# --- Open experiments panel --- #}

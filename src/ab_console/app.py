@@ -284,40 +284,63 @@ def growth_port_provider() -> GrowthPort:
     return _STUB_GROWTH
 
 
-def ideation_provider() -> IdeationResult:
-    """A sample ideation run (stub LLM + grounding). A live deploy runs the real IdeationModel
-    (GLM via model_gateway) on the operator's business + prompt."""
-    return ideate(
-        "rocket",
-        "reduce onboarding drop-off",
-        model=StubIdeationModel(),
-        grounding=StubGroundingSource(),
-        count=3,
+def run_ideation(business_id: str, prompt: str) -> IdeationResult:
+    """Run the ideation pipeline for a business. A live deploy swaps StubIdeationModel for the real
+    ModelGatewayIdeationModel (GLM via model_gateway) — which is why this runs only on an explicit
+    operator trigger (POST /growth/ideate), never on a page GET (it costs an LLM call)."""
+    return ideate(business_id, prompt, model=StubIdeationModel(), grounding=StubGroundingSource(), count=3)
+
+
+def _render_growth(
+    request: Request,
+    ks: tuple[bool, str | None],
+    rows: list[ExperimentRow],
+    snapshots: list[BusinessSnapshot],
+    *,
+    view: object | None = None,
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "growth.html",
+        {
+            "view": view,  # None until the operator runs ideation (no LLM call on GET)
+            "outcomes": experiments_view(rows),
+            "businesses": [s.business_id for s in snapshots],
+            "chrome": _chrome("growth", ks, 0),
+        },
     )
 
 
 @app.get("/growth", response_class=HTMLResponse)
 def growth_workspace(
     request: Request,
-    result: Annotated[IdeationResult, Depends(ideation_provider)],
     rows: Annotated[list[ExperimentRow], Depends(experiments_provider)],
     snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
     _op: Annotated[Operator, Depends(require_operator)],
 ) -> HTMLResponse:
-    """The Growth & Ideation workspace (PRD 0007 E7): Ideate (gated candidates) + Propose + open
-    experiments + outcomes. Advisory LLM narrative is rendered distinctly from deterministic verdicts."""
-    chrome = _chrome("growth", ks, 0)
-    return templates.TemplateResponse(
-        request,
-        "growth.html",
-        {
-            "view": ideation_workspace(result),
-            "outcomes": experiments_view(rows),
-            "businesses": [s.business_id for s in snapshots],
-            "chrome": chrome,
-        },
-    )
+    """The Growth & Ideation workspace (PRD 0007 E7). GET does NOT run ideation — it shows the
+    trigger + open experiments + outcomes; the operator runs ideation explicitly via POST."""
+    return _render_growth(request, ks, rows, snapshots, view=None)
+
+
+@app.post("/growth/ideate", response_class=HTMLResponse)
+async def growth_ideate(
+    request: Request,
+    rows: Annotated[list[ExperimentRow], Depends(experiments_provider)],
+    snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    operator: Annotated[Operator, Depends(require_operator)],
+) -> HTMLResponse:
+    """Run ideation on the operator's explicit trigger (an LLM call in a live deploy), then render
+    the gated candidate cards. Origin-checked; advisory narrative shown distinctly from verdicts."""
+    check_origin(request)
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    form = {k: v[0] for k, v in parse_qs(raw).items()}
+    business_id = form.get("business_id", "").strip() or (snapshots[0].business_id if snapshots else "")
+    prompt = form.get("prompt", "").strip() or "surface a grounded growth opportunity"
+    view = ideation_workspace(run_ideation(business_id, prompt))
+    return _render_growth(request, ks, rows, snapshots, view=view)
 
 
 @app.get("/experiments", response_class=HTMLResponse)

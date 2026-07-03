@@ -100,6 +100,17 @@ PRD 0007.
   budget; infra-gated create→run→conclude loop). Verified live: the loop moves proposed → concluded
   against real Postgres + bus.
 
+- **E4 (ideation engine — `ab_growth/ideate.py`):** pure orchestration ground → generate → score →
+  **deterministic gate** → design, over injected `IdeationModel` (the `model_gateway` seam) and
+  `GroundingSource` (ab_data reads) ports. `IdeaCandidate` schema (ideate.md §3 → `business_id`) with
+  an embedded `ExperimentCreate` ready for E1; `Scores` rubric; pure `overall_score` +
+  `ideation_gate` (PROCEED needs overall ≥ 3.5 AND novelty ≥ 3 AND grounding ≥ 3; **an un-grounded
+  idea can never PROCEED** — anti-hallucination cap). `StubIdeationModel` (strong-grounded /
+  weak / strong-but-ungrounded) + `StubGroundingSource` make the whole pipeline deterministic in CI.
+  6 infra-free tests (pipeline PROCEEDs a strong grounded idea ready for the create tool; mean score;
+  gate PROCEED/REFINE/KILL; only grounded high-scorers proceed). The real GLM-5.2 adapter behind
+  `IdeationModel` lands in E5 (wiring + demo).
+
 ## Rejected / deferred
 
 Ledger earmark of budget; N-arm `decide`; a deterministic Bayesian/sequential test; new registry

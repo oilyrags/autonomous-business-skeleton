@@ -63,6 +63,10 @@ PRD 0007.
   existing `ExperimentConcluded`.
 - A clear, auditable determinism line: idea generation and scores are advisory; the create gate, the
   `decide` verdict, the budget cap, and the ideation threshold are deterministic and replayable.
+- The domain's operator UI (PRD 0007 **E7**, a dedicated `/growth` workspace) reuses the console's
+  **established design system unchanged** — daisyUI 5 + the vendored Tailwind 4 runtime, no CDN, no
+  Node toolchain (ADR-0056 v0.3). No new UI decision; the determinism line above is made legible in
+  the UI (advisory narrative visually distinct from deterministic verdicts).
 
 ## Shipped
 

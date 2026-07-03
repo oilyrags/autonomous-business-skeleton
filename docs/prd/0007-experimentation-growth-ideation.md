@@ -127,6 +127,39 @@ experiment. A `make ideate` / `./abctl ideate` demo, and an InboxIQ-style worked
 (open-experiment count, win rate, budget utilization per `business_id`); console/Grafana surfacing;
 CONTEXT.md + CONTEXT-MAP + ADR shipped notes.
 
+**E7 — Growth & Ideation workspace UI (daisyUI + Tailwind).** The full-fidelity operator interface
+for this domain, built with the **agreed design system** — daisyUI 5 + the Tailwind 4 browser
+runtime, **vendored** (no CDN, no Node toolchain), business/corporate themes — exactly as
+ADR-0056 v0.3 established for the console. A dedicated **"Growth" workspace** (new nav entry,
+`/growth`), operator-authed (VULN-001), consistent with the existing Fleet/Decisions/Experiments
+chrome. It composes the earlier slices into one screen; each panel is a deterministic pure
+view-model over an injectable provider, infra-free-tested, and preview-verified in both themes:
+
+- **Ideate panel** — "Launch Ideate for Business X": a business selector + a prompt/context field
+  → runs `ab_growth/ideate.py` (E4) via an injected provider → renders **idea candidate cards**
+  (title, one-line hook, differentiation, `expected_impact`) with **rubric score badges** (semantic
+  green/amber/red via the existing `*_badge` filter pattern), **grounding sources** listed
+  (citations required — un-grounded ideas visibly capped), and the **gate verdict** chip
+  (PROCEED / REFINE / KILL). A PROCEED idea has a one-click **"Propose"** that pre-fills E2's form.
+- **Propose panel** — E2's `growth.experiment.create` form, promoted into the workspace (governed
+  `GrowthPort`, operator recorded as `maker`); manual proposal without running Ideate stays possible.
+- **Open experiments panel** — `proposed`/`running` rows from the `experiments` table
+  (`store.list_open`, tenant-scoped): hypothesis, arms, budget cap, status; a `table table-zebra`.
+- **Outcomes panel** — concluded experiments with the statistics visible (the existing
+  `/experiments` outcomes table + the E3 `ExperimentConcluded` decision/lift/p-value), decision
+  badge, deep-linked to the business.
+
+Design discipline (unchanged from ADR-0056 v0.3): the workspace adds **no new CSS framework and no
+build step** — only daisyUI components + the vendored assets already in `static/vendor/`; any custom
+rule goes in the thin `console.css` layer; dark/light parity; keyboard-navigable, focus-visible,
+semantic HTML + ARIA. Advisory LLM narrative (idea rationale, "why treatment wins in segment Y") is
+rendered as clearly-labelled advisory text, visually distinct from the deterministic gate/decision
+verdicts (the determinism line is legible in the UI, not just the code).
+
+Depends on E2 (propose form + `GrowthPort`) and E4 (ideation engine) for the Ideate panel; the
+Open-experiments and Outcomes panels can land as soon as E1/E3 exist. Tests: pure view-model tests
+per panel + route tests behind the operator auth; live preview screenshots in both themes.
+
 ## Structured idea schema (maps `ideate.md` §3 → our types)
 
 `IdeaCandidate` (pydantic, in `ab_growth/ideate.py`): `idea_id`, `title`, `one_line_hook`,

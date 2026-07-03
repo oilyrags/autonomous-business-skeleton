@@ -4,8 +4,19 @@ deterministic default blueprint, never a fabricated spec. Infra-free."""
 
 from __future__ import annotations
 
-from ab_product.blueprint import ModelGatewayProductModel, StubProductModel
+import pytest
+from pydantic import ValidationError
+
+from ab_product.blueprint import ModelGatewayProductModel, ProductBlueprint, StubProductModel
+from ab_product.charter import default_tokens
 from ab_schemas.models import ProductInitiative
+
+
+def test_a_blueprint_business_id_that_is_not_a_slug_is_rejected() -> None:
+    # business_id flows into the generated app.py source; hold it to the same slug rule as the charter
+    # so a malformed value can never be interpolated into generated code (defence in depth).
+    with pytest.raises(ValidationError):
+        ProductBlueprint(business_id='x";import os', name="n", design_tokens=default_tokens("ok"))
 
 
 def test_real_model_falls_back_to_the_deterministic_default_without_a_promoted_model() -> None:

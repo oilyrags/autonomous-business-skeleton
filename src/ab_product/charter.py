@@ -23,11 +23,22 @@ _DEFAULT_DEPS = frozenset({"fastapi", "uvicorn", "jinja2", "pydantic", "psycopg"
 # A token value flows verbatim into the generated theme's CSS. Restrict it to characters valid in a
 # CSS colour / font-stack / keyword so it can never carry the `;{}<>"'` metacharacters that would
 # break out of the declaration or the surrounding <style> element (defence in depth with the HTML
-# escaping the Scaffolder also applies). Allows hex, rgb()/oklch(), named colours, and font stacks.
+# escaping the Scaffolder also applies). Colours may use CSS functions — rgb()/oklch() — so they
+# allow parens; font stacks and keywords never need parens, so they're held to a stricter charset
+# that also forecloses a `url(...)` fetch primitive.
 _CSS_SAFE = re.compile(r"^[A-Za-z0-9 #%.,()-]+$")
+_CSS_WORD_SAFE = re.compile(r"^[A-Za-z0-9 #%.,-]+$")
 # business_id becomes the daisyUI theme-name — a CSS attribute-selector value AND an HTML attribute —
 # so it must be a slug (which is exactly what `classify` mints and what the ledger stores).
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+
+
+def ensure_slug(value: str, *, field: str = "business_id") -> str:
+    """Raise unless `value` is a slug ([a-z0-9] with internal hyphens). Shared by the charter and the
+    blueprint so a business_id can never carry markup/CSS metacharacters into generated code."""
+    if not _SLUG.fullmatch(value):
+        raise ValueError(f"{field} must be a slug ([a-z0-9-]): {value!r}")
+    return value
 
 
 class DesignTokens(BaseModel):
@@ -42,11 +53,18 @@ class DesignTokens(BaseModel):
     font_family: str
     density: str = "comfortable"  # comfortable | compact
 
-    @field_validator("primary", "secondary", "accent", "neutral", "base_100", "font_family", "density")
+    @field_validator("primary", "secondary", "accent", "neutral", "base_100")
     @classmethod
-    def _css_safe(cls, value: str) -> str:
+    def _colour_safe(cls, value: str) -> str:
         if not _CSS_SAFE.fullmatch(value):
-            raise ValueError(f"token value is not CSS-safe: {value!r}")
+            raise ValueError(f"colour token is not CSS-safe: {value!r}")
+        return value
+
+    @field_validator("font_family", "density")
+    @classmethod
+    def _word_safe(cls, value: str) -> str:
+        if not _CSS_WORD_SAFE.fullmatch(value):
+            raise ValueError(f"font/keyword token is not CSS-safe: {value!r}")
         return value
 
 
@@ -69,9 +87,7 @@ class BusinessCharter(BaseModel):
     @field_validator("business_id")
     @classmethod
     def _slug_only(cls, value: str) -> str:
-        if not _SLUG.fullmatch(value):
-            raise ValueError(f"business_id must be a slug ([a-z0-9-]): {value!r}")
-        return value
+        return ensure_slug(value)
 
     @property
     def theme_name(self) -> str:

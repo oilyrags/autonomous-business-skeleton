@@ -121,6 +121,23 @@ def test_a_business_id_that_is_not_a_slug_is_rejected() -> None:
         _charter('x"]{}<script>', "#0a84ff")
 
 
+def test_a_colour_token_may_use_css_functions_but_a_font_or_keyword_may_not() -> None:
+    # colours legitimately use rgb()/oklch(); a font stack or density keyword never needs parens, so
+    # they are held to a stricter charset (no `()`) — closing a `url(...)` fetch primitive.
+    _charter("rocketco", "oklch(0.7 0.1 250)")  # colour with a CSS function → accepted
+    with pytest.raises(ValidationError):
+        DesignTokens(
+            primary="#0a84ff",
+            secondary="#1f2937",
+            accent="#f59e0b",
+            neutral="#111827",
+            base_100="#0b0c0e",
+            radius_rem=0.5,
+            font_family="url(//evil/x)",  # parens in a font stack → rejected
+            density="comfortable",
+        )
+
+
 def test_default_tokens_are_distinct_across_more_than_the_primary() -> None:
     a, b = default_tokens("alpha"), default_tokens("beta")
     # each business is visibly distinct, not just in the primary colour (the headline requirement)

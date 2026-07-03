@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from ab_product.charter import DesignTokens, default_tokens
+from ab_product.charter import DesignTokens, default_tokens, ensure_slug
 from ab_schemas.models import ProductInitiative
 
 
@@ -22,6 +22,13 @@ class ProductBlueprint(BaseModel):
     features: list[str] = Field(default_factory=list)
     screens: list[str] = Field(default_factory=list)
     design_tokens: DesignTokens
+
+    @field_validator("business_id")
+    @classmethod
+    def _slug_only(cls, value: str) -> str:
+        # business_id is interpolated into the generated app.py source; a slug can carry no markup
+        # or code metacharacters (defence in depth alongside the charter's identical constraint).
+        return ensure_slug(value)
 
 
 class ProductModel(Protocol):

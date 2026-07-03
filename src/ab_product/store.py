@@ -7,16 +7,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from ab_common import bus, db
+from ab_common import db
 from ab_common.config import settings
+from ab_common.eventstore import persist_and_emit
 from ab_product.pipeline import PipelineState, Stage, start
 from ab_schemas.events import ProductStageChanged, build
 
 _COLS = "initiative_id, business_id, title, stage, status, reason"
 
 
-def _publish(state: PipelineState) -> None:
-    event = build(
+def _event(state: PipelineState) -> ProductStageChanged:
+    return build(
         ProductStageChanged,
         subject=("ProductInitiative", state.initiative_id),
         producer="product.engineering_agent",
@@ -26,7 +27,6 @@ def _publish(state: PipelineState) -> None:
         status=state.status,
         reason=state.reason,
     )
-    bus.publish_event(settings.product_stage_topic, key=state.initiative_id, event=event)
 
 
 def _to_state(row: dict[str, Any]) -> PipelineState:
@@ -43,16 +43,14 @@ def create(initiative_id: str, business_id: str, title: str) -> PipelineState:
     """Start an initiative at intake and persist it (idempotent on initiative_id); publish on a real
     insert. Returns the initial state."""
     state = start(initiative_id, business_id)
-    with db.connect() as conn:
-        cur = conn.execute(
-            "INSERT INTO product_initiatives (initiative_id, business_id, title, stage, status) "
-            "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (initiative_id) DO NOTHING RETURNING initiative_id",
-            (initiative_id, business_id, title, state.stage.value, state.status),
-        )
-        applied = cur.fetchone() is not None
-        conn.commit()
-    if applied:
-        _publish(state)
+    persist_and_emit(
+        "INSERT INTO product_initiatives (initiative_id, business_id, title, stage, status) "
+        "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (initiative_id) DO NOTHING",
+        (initiative_id, business_id, title, state.stage.value, state.status),
+        topic=settings.product_stage_topic,
+        key=initiative_id,
+        event=lambda: _event(state),
+    )
     return state
 
 
@@ -63,25 +61,22 @@ def save(state: PipelineState) -> bool:
     of the same state does not emit a duplicate `ProductStageChanged` (which would double-count in the
     KPI gauges and the data projections), and saving an unknown initiative is a no-op. Returns True
     iff this call changed the persisted row."""
-    with db.connect() as conn:
-        cur = conn.execute(
-            "UPDATE product_initiatives SET stage = %s, status = %s, reason = %s, updated_at = now() "
-            "WHERE initiative_id = %s AND (stage, status, reason) IS DISTINCT FROM (%s, %s, %s)",
-            (
-                state.stage.value,
-                state.status,
-                state.reason,
-                state.initiative_id,
-                state.stage.value,
-                state.status,
-                state.reason,
-            ),
-        )
-        transitioned = cur.rowcount == 1
-        conn.commit()
-    if transitioned:
-        _publish(state)
-    return transitioned
+    return persist_and_emit(
+        "UPDATE product_initiatives SET stage = %s, status = %s, reason = %s, updated_at = now() "
+        "WHERE initiative_id = %s AND (stage, status, reason) IS DISTINCT FROM (%s, %s, %s)",
+        (
+            state.stage.value,
+            state.status,
+            state.reason,
+            state.initiative_id,
+            state.stage.value,
+            state.status,
+            state.reason,
+        ),
+        topic=settings.product_stage_topic,
+        key=state.initiative_id,
+        event=lambda: _event(state),
+    )
 
 
 def get(initiative_id: str) -> PipelineState | None:

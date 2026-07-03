@@ -60,7 +60,8 @@ def test_conclude_is_idempotent_and_publishes_the_outcome_once(clean_db: None, m
     decision = runner.run(record, _blueprint(), control=_CONTROL, variant=_VARIANT)
 
     published: list[str] = []  # count publishes AFTER create (so only the conclude events)
-    monkeypatch.setattr("ab_growth.store.bus.publish", lambda topic, *, key, value: published.append(topic))
+    # publishing flows through the shared persist_and_emit → bus.publish seam; patch it at the source
+    monkeypatch.setattr("ab_common.bus.publish", lambda topic, *, key, value: published.append(topic))
 
     assert store.conclude(exp, decision) is True  # first call transitions
     assert store.conclude(exp, decision) is False  # already concluded → no-op

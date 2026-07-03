@@ -12,8 +12,9 @@ from typing import Any
 
 from psycopg.types.json import Jsonb
 
-from ab_common import bus, db
+from ab_common import db
 from ab_common.config import settings
+from ab_common.eventstore import persist_and_emit
 from ab_growth.experiment import Decision, Experiment, to_created_event, to_event
 from ab_schemas.models import ExperimentCreate
 
@@ -32,28 +33,24 @@ class ExperimentRecord:
 def create(proposal: ExperimentCreate, experiment_id: str, *, created_by: str) -> bool:
     """Persist a proposal and publish `ExperimentCreated`. Idempotent on `experiment_id`
     (a replay of the same id is a no-op). Returns True on a real insert, False on replay."""
-    with db.connect() as conn:
-        cur = conn.execute(
-            "INSERT INTO experiments (experiment_id, business_id, hypothesis, arms, "
-            "budget_minor, success_metrics, status, created_by) "
-            "VALUES (%s, %s, %s, %s, %s, %s, 'proposed', %s) "
-            "ON CONFLICT (experiment_id) DO NOTHING RETURNING experiment_id",
-            (
-                experiment_id,
-                proposal.business_id,
-                proposal.hypothesis,
-                Jsonb([arm.model_dump() for arm in proposal.arms]),
-                proposal.budget_minor,
-                Jsonb(proposal.success_metrics),
-                created_by,
-            ),
-        )
-        applied = cur.fetchone() is not None
-        conn.commit()
-    if applied:
-        event = to_created_event(proposal, experiment_id, producer=created_by)
-        bus.publish_event(settings.experiment_topic, key=experiment_id, event=event)
-    return applied
+    return persist_and_emit(
+        "INSERT INTO experiments (experiment_id, business_id, hypothesis, arms, "
+        "budget_minor, success_metrics, status, created_by) "
+        "VALUES (%s, %s, %s, %s, %s, %s, 'proposed', %s) "
+        "ON CONFLICT (experiment_id) DO NOTHING",
+        (
+            experiment_id,
+            proposal.business_id,
+            proposal.hypothesis,
+            Jsonb([arm.model_dump() for arm in proposal.arms]),
+            proposal.budget_minor,
+            Jsonb(proposal.success_metrics),
+            created_by,
+        ),
+        topic=settings.experiment_topic,
+        key=experiment_id,
+        event=lambda: to_created_event(proposal, experiment_id, producer=created_by),
+    )
 
 
 def conclude(exp: Experiment, decision: Decision) -> bool:
@@ -64,18 +61,14 @@ def conclude(exp: Experiment, decision: Decision) -> bool:
     event is published **only on a real transition** — so a retry / replay / re-run does not emit a
     duplicate `ExperimentConcluded` (which would double-count the outcome in the portfolio rollup),
     and concluding an unknown experiment is a no-op. Returns True iff this call concluded it."""
-    with db.connect() as conn:
-        cur = conn.execute(
-            "UPDATE experiments SET status = 'concluded', decision = %s "
-            "WHERE experiment_id = %s AND status <> 'concluded'",
-            (decision.action.value, exp.experiment_id),
-        )
-        transitioned = cur.rowcount == 1
-        conn.commit()
-    if transitioned:
-        event = to_event(exp, decision)
-        bus.publish_event(settings.experiment_concluded_topic, key=exp.experiment_id, event=event)
-    return transitioned
+    return persist_and_emit(
+        "UPDATE experiments SET status = 'concluded', decision = %s "
+        "WHERE experiment_id = %s AND status <> 'concluded'",
+        (decision.action.value, exp.experiment_id),
+        topic=settings.experiment_concluded_topic,
+        key=exp.experiment_id,
+        event=lambda: to_event(exp, decision),
+    )
 
 
 _COLS = "experiment_id, business_id, hypothesis, arms, budget_minor, status, decision"

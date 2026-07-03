@@ -9,10 +9,10 @@ refused even when policy would otherwise allow it.
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 from uuid import uuid4
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from ab_common import bus, db
 from ab_common.config import settings
@@ -44,6 +44,25 @@ class ToolDenied(Exception):
         self.status = status
 
 
+_M = TypeVar("_M", bound=BaseModel)
+
+
+def _validated(model_cls: type[_M], args: dict[str, Any], *, what: str) -> _M:
+    """Validate a tool's raw args into its typed model, mapping a bad payload to an audited
+    ToolDenied(400) — never an uncaught 500. The validate→deny step every governed handler repeats."""
+    try:
+        return model_cls.model_validate(args)
+    except ValidationError as exc:
+        raise ToolDenied(f"invalid {what} args: {exc.error_count()} error(s)", status=400) from exc
+
+
+def _require_serves(principal: str, business_id: str) -> None:
+    """Tenant-bind: the principal must serve the business, else an audited ToolDenied(403) (VULN-002,
+    no cross-tenant action). The serves-business guard every business-scoped handler repeats."""
+    if not authz.serves_business(principal, business_id):
+        raise ToolDenied(f"'{principal}' is not authorized for business '{business_id}'", status=403)
+
+
 # Ordering of data sensitivity for the egress guard. personal/financial are the top tier.
 _RANK: dict[DataClassification, int] = {
     DataClassification.PUBLIC: 0,
@@ -72,8 +91,8 @@ def write_decision(principal: str, args: dict[str, Any]) -> str:
     VULN-002/003: the agent may not write a decision scoped to a business it doesn't serve, may not
     claim an authority_level above its ceiling, and may not self-assert a human-approval status."""
     d = DecisionWrite.model_validate(args)
-    if d.business_id is not None and not authz.serves_business(principal, d.business_id):
-        raise ToolDenied(f"'{principal}' is not authorized for business '{d.business_id}'", status=403)
+    if d.business_id is not None:
+        _require_serves(principal, d.business_id)
     if authz.exceeds_authority(principal, d.authority_level):
         raise ToolDenied(
             f"declared authority_level {d.authority_level} exceeds '{principal}' ceiling "
@@ -99,12 +118,8 @@ def create_experiment(principal: str, args: dict[str, Any]) -> str:
     Every business-rule refusal is a `ToolDenied` (audited gateway deny), never a 500."""
     from ab_growth import store as experiment_store
 
-    try:
-        proposal = ExperimentCreate.model_validate(args)
-    except ValidationError as exc:
-        raise ToolDenied(f"invalid experiment args: {exc.error_count()} error(s)", status=400) from exc
-    if not authz.serves_business(principal, proposal.business_id):
-        raise ToolDenied(f"'{principal}' is not authorized for business '{proposal.business_id}'", status=403)
+    proposal = _validated(ExperimentCreate, args, what="experiment")
+    _require_serves(principal, proposal.business_id)
 
     business, cash = _require_ready_business(principal, proposal.business_id)
     afford = factory_core.can_spend(business, proposal.budget_minor, cash_balance=cash)
@@ -126,18 +141,11 @@ def promote_initiative(principal: str, args: dict[str, Any]) -> str:
     from ab_product.classify import classify
     from ab_product.scaffold import scaffold, to_scaffolded_event
 
-    try:
-        initiative = ProductInitiative.model_validate(args)
-    except ValidationError as exc:
-        raise ToolDenied(f"invalid initiative args: {exc.error_count()} error(s)", status=400) from exc
+    initiative = _validated(ProductInitiative, args, what="initiative")
 
     classification = classify(initiative)  # deterministic new vs extension
-    if classification.kind == "extension" and not authz.serves_business(
-        principal, classification.business_id
-    ):
-        raise ToolDenied(
-            f"'{principal}' is not authorized for business '{classification.business_id}'", status=403
-        )
+    if classification.kind == "extension":  # a new business has no owner yet; an extension must bind
+        _require_serves(principal, classification.business_id)
 
     blueprint = StubProductModel().spec(initiative, classification.business_id)  # LLM seam (P5: real)
     charter = BusinessCharter(
@@ -161,8 +169,7 @@ def _require_ready_business(principal: str, business_id: str) -> tuple[factory_c
     authorized for the business (VULN-002 — no cross-tenant action), and the business must exist and
     be launch-ready right now (live re-check of funding, kill switch, compliance). Returns
     (business, cash_balance) or raises an audited ToolDenied."""
-    if not authz.serves_business(principal, business_id):
-        raise ToolDenied(f"'{principal}' is not authorized for business '{business_id}'", status=403)
+    _require_serves(principal, business_id)
     business = factory_store.get(business_id)
     if business is None:
         raise ToolDenied(f"unknown business '{business_id}'", status=400)
@@ -241,10 +248,7 @@ def transfer_payment(principal: str, args: dict[str, Any]) -> str:
     """Move money to an external payee via the ledger. The ledger enforces double-entry,
     the cap, maker-checker, the payee allow-list, and idempotency — rule violations surface
     as a ToolDenied (an audited gateway deny), never an uncaught error."""
-    try:
-        p = PaymentTransfer.model_validate(args)
-    except ValidationError as exc:
-        raise ToolDenied(f"invalid payment args: {exc.error_count()} error(s)", status=400) from exc
+    p = _validated(PaymentTransfer, args, what="payment")
     from_account = p.from_account
     if p.business_id is not None:  # business-scoped: gate through the Factory, spend its own cash
         from_account = _gate_business_spend(principal, p.business_id, p.amount_minor)

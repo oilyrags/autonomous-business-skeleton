@@ -9,6 +9,7 @@ nothing an agent couldn't.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -19,6 +20,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from ab_console import live_reads
 from ab_console.approvals import ApprovalPort, StubApprovalPort
 from ab_console.auth import Operator, check_origin, require_mutator, require_operator
 from ab_console.killswitch_port import KillSwitchPort, StubKillSwitchPort
@@ -56,6 +58,10 @@ from ab_obs.core import Anomaly, AnomalyKind, BusinessSnapshot
 from ab_ops.reliability import ErrorBudget
 from ab_product.kpis import product_gauges, product_kpis
 from ab_product.pipeline import PipelineState, Stage
+
+# PRD 0009 S4: store-backed read panels go live in-process when AB_CONSOLE_PROVIDER=live; sample by
+# default. (fleet/snapshots/econ/checks stay sample pending a console LedgerView adapter.)
+_CONSOLE_LIVE = os.environ.get("AB_CONSOLE_PROVIDER", "sample").strip().lower() == "live"
 
 _DIR = Path(__file__).parent
 templates = Jinja2Templates(directory=str(_DIR / "templates"))
@@ -206,8 +212,8 @@ _SAMPLE_EXPERIMENT_RECORDS = [
 
 
 def experiment_records_provider() -> list[ExperimentRecord]:
-    """All experiments (for the KPI projection). A live deploy returns `store.list_by_business()`."""
-    return _SAMPLE_EXPERIMENT_RECORDS
+    """All experiments (for the KPI projection). Live in-process when AB_CONSOLE_PROVIDER=live."""
+    return live_reads.experiment_records() if _CONSOLE_LIVE else _SAMPLE_EXPERIMENT_RECORDS
 
 
 def fleet_provider() -> FleetView:
@@ -233,11 +239,11 @@ def checks_provider() -> list[CheckResult]:
 
 
 def experiments_provider() -> list[ExperimentRow]:
-    return _SAMPLE_EXPERIMENTS
+    return live_reads.experiments() if _CONSOLE_LIVE else _SAMPLE_EXPERIMENTS
 
 
 def audit_provider() -> list[AuditRow]:
-    return _SAMPLE_AUDIT
+    return live_reads.audit() if _CONSOLE_LIVE else _SAMPLE_AUDIT
 
 
 def audit_integrity_provider() -> bool:
@@ -245,8 +251,8 @@ def audit_integrity_provider() -> bool:
 
 
 def kill_switch_state_provider() -> tuple[bool, str | None]:
-    """(active, reason) — a live deployment reads the kill-switch table."""
-    return (False, None)
+    """(active, reason) — reads the live kill-switch table when AB_CONSOLE_PROVIDER=live."""
+    return live_reads.kill_switch_state() if _CONSOLE_LIVE else (False, None)
 
 
 def killswitch_port_provider() -> KillSwitchPort:
@@ -360,8 +366,8 @@ async def growth_ideate(
 
 
 def product_initiatives_provider() -> list[PipelineState]:
-    """Product initiatives in the gated SDLC. A live deploy returns `ab_product.store.list_by_business()`."""
-    return _SAMPLE_INITIATIVES
+    """Product initiatives in the gated SDLC. Live in-process when AB_CONSOLE_PROVIDER=live."""
+    return live_reads.product_initiatives() if _CONSOLE_LIVE else _SAMPLE_INITIATIVES
 
 
 def product_port_provider() -> ProductPort:

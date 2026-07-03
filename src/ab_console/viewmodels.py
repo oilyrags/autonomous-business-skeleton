@@ -359,10 +359,13 @@ class IdeaCard:
     verdict: str  # deterministic: proceed | refine | kill
     badge: str
     can_propose: bool
-    # the embedded proposal, surfaced for one-click Propose
+    # the embedded proposal, surfaced faithfully for one-click Propose
     business_id: str
     hypothesis: str
     budget_minor: int
+    control_desc: str
+    treatment_desc: str
+    success_metrics: list[str]
 
 
 @dataclass(frozen=True)
@@ -390,6 +393,9 @@ def ideation_workspace(result: IdeationResult) -> GrowthWorkspaceView:
             business_id=j.candidate.experiment.business_id,
             hypothesis=j.candidate.experiment.hypothesis,
             budget_minor=j.candidate.experiment.budget_minor,
+            control_desc=j.candidate.experiment.arms[0].description or "current experience",
+            treatment_desc=j.candidate.experiment.arms[1].description or j.candidate.title,
+            success_metrics=list(j.candidate.experiment.success_metrics),
         )
         for j in result.judged
     ]

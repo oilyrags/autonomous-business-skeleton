@@ -56,6 +56,11 @@ def test_gate_kills_a_weak_idea() -> None:
     assert ideation_gate(weak, ["internal: brand survey"]) is Verdict.KILL
 
 
+def test_gate_kills_a_weak_idea_whether_or_not_it_is_grounded() -> None:
+    weak = Scores(novelty=1, feasibility=2, market=1, grounding=1, experiment_clarity=2)  # overall 1.4
+    assert ideation_gate(weak, []) is Verdict.KILL  # un-grounded + weak → KILL, not REFINE-forever
+
+
 def test_only_grounded_high_scorers_proceed_through_the_pipeline() -> None:
     result = ideate("rocket", "x", model=StubIdeationModel(), grounding=StubGroundingSource(), count=3)
     assert {c.idea_id for c in result.proceed} == {"idea-strong"}

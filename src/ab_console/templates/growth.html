@@ -60,10 +60,10 @@
                 <form method="post" action="/experiments/propose">
                   <input type="hidden" name="business_id" value="{{ c.business_id }}">
                   <input type="hidden" name="hypothesis" value="{{ c.hypothesis }}">
-                  <input type="hidden" name="control_desc" value="current experience">
-                  <input type="hidden" name="treatment_desc" value="{{ c.title }}">
+                  <input type="hidden" name="control_desc" value="{{ c.control_desc }}">
+                  <input type="hidden" name="treatment_desc" value="{{ c.treatment_desc }}">
                   <input type="hidden" name="budget" value="{{ "%.2f" | format(c.budget_minor / 100) }}">
-                  <input type="hidden" name="success_metrics" value="activation_rate">
+                  <input type="hidden" name="success_metrics" value="{{ c.success_metrics | join(', ') }}">
                   <button type="submit" class="btn btn-primary btn-sm">Propose experiment</button>
                 </form>
               {% else %}

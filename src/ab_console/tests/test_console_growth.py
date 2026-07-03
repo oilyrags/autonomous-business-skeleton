@@ -78,9 +78,9 @@ def _form(**over: str) -> dict[str, str]:
 
 def test_propose_routes_through_the_governed_port_with_the_real_operator(client: TestClient) -> None:
     from ab_console.app import app, growth_port_provider
-    from ab_console.growth_port import StubGrowthPort
+    from ab_growth.proposer import StubExperimentProposer
 
-    stub = StubGrowthPort()
+    stub = StubExperimentProposer()
     app.dependency_overrides[growth_port_provider] = lambda: stub
     resp = client.post("/experiments/propose", data=_form())
     assert resp.status_code == 200

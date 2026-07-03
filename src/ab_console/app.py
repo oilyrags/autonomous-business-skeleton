@@ -21,7 +21,6 @@ from fastapi.templating import Jinja2Templates
 
 from ab_console.approvals import ApprovalPort, StubApprovalPort
 from ab_console.auth import Operator, check_origin, require_mutator, require_operator
-from ab_console.growth_port import GrowthPort, StubGrowthPort
 from ab_console.killswitch_port import KillSwitchPort, StubKillSwitchPort
 from ab_console.stream import SAMPLE_EVENTS, sse_format
 from ab_console.viewmodels import (
@@ -46,6 +45,7 @@ from ab_console.viewmodels import (
 from ab_econ.core import UnitEconomics, UnitInputs, economics
 from ab_growth.ideate import IdeationResult, StubGroundingSource, StubIdeationModel, ideate
 from ab_growth.kpis import experiment_gauges, experiment_kpis
+from ab_growth.proposer import ExperimentProposer, StubExperimentProposer
 from ab_growth.store import ExperimentRecord
 from ab_monitor.check import CheckResult, CheckStatus, cert_expiry_check, slo_burn_check
 from ab_monitor.prometheus import CONTENT_TYPE as PROMETHEUS_CONTENT_TYPE
@@ -159,7 +159,7 @@ _SAMPLE_PENDING = [
 
 _STUB_KILLSWITCH = StubKillSwitchPort()
 _STUB_APPROVALS = StubApprovalPort()
-_STUB_GROWTH = StubGrowthPort()
+_STUB_GROWTH = StubExperimentProposer()
 
 _SAMPLE_EXPERIMENT_RECORDS = [
     ExperimentRecord(
@@ -279,7 +279,7 @@ def business_page(
     return templates.TemplateResponse(request, "business.html", {"view": view, "chrome": chrome})
 
 
-def growth_port_provider() -> GrowthPort:
+def growth_port_provider() -> ExperimentProposer:
     """The governed propose path. A live deploy returns HttpGrowthPort(token_provider=…)."""
     return _STUB_GROWTH
 
@@ -368,9 +368,9 @@ async def experiments_propose(
     snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
     operator: Annotated[Operator, Depends(require_operator)],
-    port: Annotated[GrowthPort, Depends(growth_port_provider)],
+    port: Annotated[ExperimentProposer, Depends(growth_port_provider)],
 ) -> HTMLResponse:
-    """Propose an experiment through the governed GrowthPort — the console does nothing an agent
+    """Propose an experiment through the governed proposer — the console does nothing an agent
     couldn't; the real operator is recorded as maker (VULN-001 + PRD 0007 E2)."""
     require_mutator(operator)  # proposing spends against a business's runway cap — a mutating action
     check_origin(request)  # CSRF defense in depth

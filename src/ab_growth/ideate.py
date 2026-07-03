@@ -14,13 +14,16 @@ applies), and real grounding behind `GroundingSource`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
 from pydantic import BaseModel, Field
 
+from ab_growth.proposer import ExperimentProposer, GrowthOutcome, StubExperimentProposer
 from ab_schemas.models import Arm, ExperimentCreate
+
+__all__ = ["ExperimentProposer", "GrowthOutcome", "StubExperimentProposer"]  # re-exported seam (#3)
 
 # Gate thresholds (decision 8). An idea proceeds only if it clears the overall bar AND is novel
 # enough AND is grounded enough; an idea with no cited grounding sources can never proceed.
@@ -113,16 +116,6 @@ class IdeationModel(Protocol):
     def propose(self, business_id: str, grounding: GroundingReport, count: int) -> list[IdeaCandidate]: ...
 
 
-class ExperimentProposer(Protocol):
-    """Dispatch a PROCEED idea's experiment through the governed path. Returns the experiment_id.
-
-    A real adapter is the console's `HttpGrowthPort` / a gateway client calling
-    `growth.experiment.create` under `growth.experiment_design_agent` — kept as a port here so the
-    growth context never depends on the gateway/console (no import cycle)."""
-
-    def create(self, proposal: ExperimentCreate, *, maker: str) -> str: ...
-
-
 # --- Pure scoring + gate (replayable; the LLM's scores are the only model-authored input) -----------
 
 
@@ -134,15 +127,20 @@ def overall_score(scores: Scores) -> float:
 
 def ideation_gate(scores: Scores, grounding_sources: list[str]) -> Verdict:
     """Turn advisory rubric scores + grounding into a replayable verdict. An idea with no cited
-    grounding sources can never PROCEED (anti-hallucination cap), regardless of its scores."""
-    if not grounding_sources:
-        return Verdict.REFINE  # ground it first — it may not proceed while un-grounded
+    grounding sources can never PROCEED (anti-hallucination cap), but a weak idea is KILLed whether
+    grounded or not — grounding gates PROCEED, not the REFINE/KILL floor."""
     overall = overall_score(scores)
-    if overall >= GATE_OVERALL and scores.novelty >= GATE_NOVELTY and scores.grounding >= GATE_GROUNDING:
-        return Verdict.PROCEED
+    grounded = bool(grounding_sources)
+    if (
+        grounded
+        and overall >= GATE_OVERALL
+        and scores.novelty >= GATE_NOVELTY
+        and scores.grounding >= GATE_GROUNDING
+    ):
+        return Verdict.PROCEED  # grounded and clears every bar
     if overall >= _REFINE_FLOOR:
-        return Verdict.REFINE
-    return Verdict.KILL
+        return Verdict.REFINE  # promising, or good-but-un-grounded → iterate / ground it first
+    return Verdict.KILL  # weak — drop it, grounded or not
 
 
 # --- Orchestration (pure over the injected ports) --------------------------------------------------
@@ -170,8 +168,9 @@ def ideate(
 def propose_ideas(result: IdeationResult, *, proposer: ExperimentProposer, maker: str) -> list[str]:
     """Dispatch every PROCEED idea's embedded experiment through the governed proposer (E5). Only
     gated-PROCEED ideas reach the create tool; the maker (the requesting operator/agent) is carried
-    through for audit. Returns the created experiment ids."""
-    return [proposer.create(candidate.experiment, maker=maker) for candidate in result.proceed]
+    through for audit. Returns the created experiment ids (successful dispatches only)."""
+    outcomes = [proposer.create(candidate.experiment, maker=maker) for candidate in result.proceed]
+    return [o.experiment_id for o in outcomes if o.ok and o.experiment_id is not None]
 
 
 # --- Stubs (deterministic CI) ----------------------------------------------------------------------
@@ -189,20 +188,6 @@ class StubGroundingSource:
             relevant_prior_experiments=["exp-042: friction removal won (+18%)"],
             recommended_focus_areas=["reduce time-to-value"],
         )
-
-
-@dataclass
-class StubExperimentProposer:
-    """Records governed proposals for tests + the demo; returns a deterministic id. A real adapter
-    dispatches through the gateway's `growth.experiment.create`."""
-
-    created: list[dict[str, object]] = field(default_factory=list)
-
-    def create(self, proposal: ExperimentCreate, *, maker: str) -> str:
-        self.created.append(
-            {"business_id": proposal.business_id, "hypothesis": proposal.hypothesis, "maker": maker}
-        )
-        return f"exp_ideate_{len(self.created)}"
 
 
 class ModelGatewayIdeationModel:

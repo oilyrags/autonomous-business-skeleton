@@ -25,6 +25,14 @@ def _labels(**labels: str | None) -> str:
     return "{" + ",".join(parts) + "}" if parts else ""
 
 
+def gauge(name: str, help_text: str, samples: Iterable[tuple[dict[str, str], float]]) -> list[str]:
+    """Render one gauge: HELP/TYPE headers + a line per (labels, value) sample. The shared renderer
+    other contexts (e.g. ab_growth KPIs) reuse so label-escaping + number formatting live in one place."""
+    lines = [f"# HELP {name} {help_text}", f"# TYPE {name} gauge"]
+    lines += [f"{name}{_labels(**labels)} {_num(value)}" for labels, value in samples]
+    return lines
+
+
 def check_metrics(results: Iterable[CheckResult]) -> list[str]:
     """Checks as gauges: status (0 OK / 1 WARNING / 2 CRITICAL / 3 UNKNOWN) + perfdata + thresholds."""
     lines = [

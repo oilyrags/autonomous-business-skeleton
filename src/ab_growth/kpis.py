@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from ab_growth.store import ExperimentRecord
+from ab_monitor.prometheus import gauge
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,7 @@ def experiment_kpis(records: Iterable[ExperimentRecord]) -> list[ExperimentKpi]:
 
 
 def experiment_gauges(kpis: Iterable[ExperimentKpi]) -> list[str]:
-    """Render the KPIs as Prometheus gauge lines (business_id-labelled), with HELP/TYPE headers."""
+    """Render the KPIs as Prometheus gauge lines (business_id-labelled) via the shared renderer."""
     specs = (
         ("ab_experiment_open", "Proposed/running experiments.", "open"),
         ("ab_experiment_concluded", "Concluded experiments.", "concluded"),
@@ -62,6 +63,5 @@ def experiment_gauges(kpis: Iterable[ExperimentKpi]) -> list[str]:
     kpis = list(kpis)
     lines: list[str] = []
     for name, help_text, attr in specs:
-        lines += [f"# HELP {name} {help_text}", f"# TYPE {name} gauge"]
-        lines += [f'{name}{{business_id="{k.business_id}"}} {getattr(k, attr)}' for k in kpis]
+        lines += gauge(name, help_text, [({"business_id": k.business_id}, getattr(k, attr)) for k in kpis])
     return lines

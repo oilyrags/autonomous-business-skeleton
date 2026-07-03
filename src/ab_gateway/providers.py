@@ -17,8 +17,10 @@ network or the ``portkey-ai`` package unless a real Portkey call is actually mad
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from typing import Any, Protocol
 
+from ab_common.adapters import select_adapter
 from ab_evals.harness import Model
 from ab_evals.models import StubModel
 from ab_gateway.model_routes import ROUTES, TaskRoute
@@ -91,11 +93,10 @@ class PortkeyModel:
 
 
 def select_model() -> Model:
-    """Pick the served model from the environment. Defaults to the offline stub."""
-    provider = os.environ.get("AB_MODEL_PROVIDER", "stub").lower()
-    if provider == "portkey":
-        return PortkeyModel()
-    return StubModel()
+    """Pick the served model from the environment via the shared per-port selector (PRD 0009 S1).
+    Defaults to the offline stub; the model seam is advisory (abstains safely) so it is not critical."""
+    real: dict[str, Callable[[], Model]] = {"portkey": PortkeyModel}
+    return select_adapter("model", stub=StubModel, real=real)
 
 
 def is_offline(model: Model) -> bool:

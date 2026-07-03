@@ -15,6 +15,12 @@ _ENV = os.environ.get("AB_ENV", "dev")
 _IS_DEV = _ENV in _DEV_ENVS
 
 
+def is_dev_env() -> bool:
+    """Live check of whether ``AB_ENV`` is a dev-like environment. Read at call time (not import) so
+    per-port adapter selection (PRD 0009 S1) can fail closed on a critical seam outside dev."""
+    return os.environ.get("AB_ENV", "dev") in _DEV_ENVS
+
+
 def _secret(var: str, dev_default: str) -> str:
     """A secret-bearing setting: the env value if set; a dev default only in a dev environment;
     otherwise refuse to start rather than run on a known-weak default (fail-closed)."""

@@ -29,6 +29,8 @@ class Grant:
 # the skeleton's executive operator acts portfolio-wide. Scope narrower principals per deployment.
 _GRANTS: dict[str, Grant] = {
     "executive.cmo_agent": Grant(authority_ceiling=3, businesses=frozenset({WILDCARD})),
+    # Owns growth.experiment.create (PRD 0007); the growth operator acts across the portfolio.
+    "growth.experiment_design_agent": Grant(authority_ceiling=3, businesses=frozenset({WILDCARD})),
 }
 
 _DENY = Grant(authority_ceiling=0, businesses=frozenset())

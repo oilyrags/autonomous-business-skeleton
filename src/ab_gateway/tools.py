@@ -25,7 +25,7 @@ from ab_killswitch import state as killswitch
 from ab_ledger import store as ledger_store
 from ab_ledger.core import LedgerError, Posting, Transaction
 from ab_schemas.events import DataClassification, LedgerEntryPosted, SubjectRef
-from ab_schemas.models import DecisionWrite, NotifyExternal, PaymentTransfer
+from ab_schemas.models import DecisionWrite, ExperimentCreate, NotifyExternal, PaymentTransfer
 
 Handler = Callable[[str, dict[str, Any]], str]
 
@@ -87,10 +87,35 @@ def write_decision(principal: str, args: dict[str, Any]) -> str:
     return d.decision_id
 
 
-def _gate_business_spend(principal: str, business_id: str, amount_minor: int) -> str:
-    """Factory gate for a business-scoped payment: the calling principal must be authorized for the
-    business (VULN-002 — no cross-tenant spend), and the business must exist, be launch-ready right
-    now (live re-check), and afford the amount. Returns the account to debit (its cash)."""
+def create_experiment(principal: str, args: dict[str, Any]) -> str:
+    """Create a governed experiment proposal (PRD 0007). Tenant-bound (the principal must serve the
+    business), affordability-gated (the business must be launch-ready and able to afford the budget
+    CAP — a read, no cash moves), then persisted + `ExperimentCreated` emitted. Returns experiment_id.
+    Every business-rule refusal is a `ToolDenied` (audited gateway deny), never a 500."""
+    from ab_growth import store as experiment_store
+
+    try:
+        proposal = ExperimentCreate.model_validate(args)
+    except ValidationError as exc:
+        raise ToolDenied(f"invalid experiment args: {exc.error_count()} error(s)", status=400) from exc
+    if not authz.serves_business(principal, proposal.business_id):
+        raise ToolDenied(f"'{principal}' is not authorized for business '{proposal.business_id}'", status=403)
+
+    business, cash = _require_ready_business(principal, proposal.business_id)
+    afford = factory_core.can_spend(business, proposal.budget_minor, cash_balance=cash)
+    if not afford.allowed:  # budget is a CAP checked against runway; no cash is moved
+        raise ToolDenied(f"business '{proposal.business_id}' cannot afford budget: {afford.reason}")
+
+    experiment_id = f"exp_{uuid4().hex[:12]}"
+    experiment_store.create(proposal, experiment_id, created_by=principal)
+    return experiment_id
+
+
+def _require_ready_business(principal: str, business_id: str) -> tuple[factory_core.Business, int]:
+    """Tenant + readiness gate shared by every business-scoped tool: the principal must be
+    authorized for the business (VULN-002 — no cross-tenant action), and the business must exist and
+    be launch-ready right now (live re-check of funding, kill switch, compliance). Returns
+    (business, cash_balance) or raises an audited ToolDenied."""
     if not authz.serves_business(principal, business_id):
         raise ToolDenied(f"'{principal}' is not authorized for business '{business_id}'", status=403)
     business = factory_store.get(business_id)
@@ -105,6 +130,13 @@ def _gate_business_spend(principal: str, business_id: str, amount_minor: int) ->
     )
     if not ready.ready:
         raise ToolDenied(f"business '{business_id}' not launch-ready: {'; '.join(ready.reasons)}")
+    return business, cash
+
+
+def _gate_business_spend(principal: str, business_id: str, amount_minor: int) -> str:
+    """Factory gate for a business-scoped payment: tenant + launch-ready (shared gate), then affords
+    the amount. Returns the account to debit (its cash)."""
+    business, cash = _require_ready_business(principal, business_id)
     spend = factory_core.can_spend(business, amount_minor, cash_balance=cash)
     if not spend.allowed:
         raise ToolDenied(f"business '{business_id}': {spend.reason}")
@@ -244,6 +276,13 @@ REGISTRY: dict[str, ToolSpec] = {
         side_effect="irreversible",
         sensitive=True,  # fails closed on an untrusted-input flow
         description="Move money to an external payee via the double-entry ledger.",
+    ),
+    "growth.experiment.create": ToolSpec(
+        name="growth.experiment.create",
+        handler=create_experiment,
+        side_effect="write",
+        sensitive=True,  # a governed, tenant-bound proposal; fails closed on untrusted input
+        description="Create a governed, tenant-isolated experiment proposal (budget-capped, audited).",
     ),
 }
 

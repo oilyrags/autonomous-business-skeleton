@@ -73,6 +73,7 @@ def clean_db(infra: None) -> Iterator[None]:
         conn.execute("TRUNCATE outbox")
         conn.execute("TRUNCATE ledger_entries, ledger_txns")
         conn.execute("TRUNCATE businesses")
+        conn.execute("TRUNCATE experiments")
         conn.commit()
     yield
 

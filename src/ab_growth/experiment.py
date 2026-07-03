@@ -15,7 +15,8 @@ from pydantic import BaseModel, Field, model_validator
 
 from ab_growth.blueprint import Blueprint
 from ab_growth.stats import significant, two_proportion_p_value
-from ab_schemas.events import DataClassification, ExperimentConcluded, SubjectRef
+from ab_schemas.events import DataClassification, ExperimentConcluded, ExperimentCreated, SubjectRef
+from ab_schemas.models import ExperimentCreate
 
 
 class Action(StrEnum):
@@ -111,6 +112,26 @@ def decide(exp: Experiment, bp: Blueprint) -> Decision:
     if exp.total_spend_minor >= bp.experiment_budget_minor:
         return d(Action.KILL, "inconclusive and experiment budget exhausted")
     return d(Action.CONTINUE, "underpowered — within budget, gather more data")
+
+
+def to_created_event(
+    proposal: ExperimentCreate, experiment_id: str, producer: str = "growth.experiment_design_agent"
+) -> ExperimentCreated:
+    """Build the `ExperimentCreated` event for a persisted proposal (PRD 0007). Pure."""
+    return ExperimentCreated(
+        event_name="ExperimentCreated",
+        event_id=uuid.uuid4().hex,
+        occurred_at=datetime.now(tz=UTC),
+        producer=producer,
+        data_classification=DataClassification.INTERNAL,
+        subject_ref=SubjectRef(type="Experiment", id=experiment_id),
+        business_id=proposal.business_id,
+        experiment_id=experiment_id,
+        hypothesis=proposal.hypothesis,
+        arm_names=[arm.name for arm in proposal.arms],
+        budget_minor=proposal.budget_minor,
+        status="proposed",
+    )
 
 
 def to_event(

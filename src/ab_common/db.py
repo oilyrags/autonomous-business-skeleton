@@ -90,6 +90,19 @@ _DDL = [
         created_at    timestamptz NOT NULL DEFAULT now()
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS experiments (
+        experiment_id   text PRIMARY KEY,
+        business_id     text NOT NULL,
+        hypothesis      text NOT NULL,
+        arms            jsonb NOT NULL,
+        budget_minor    bigint NOT NULL,
+        success_metrics jsonb NOT NULL,
+        status          text NOT NULL DEFAULT 'proposed',
+        created_by      text NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT now()
+    )
+    """,
 ]
 
 

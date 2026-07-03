@@ -107,6 +107,11 @@ channels:
     messages:
       PostMetricsCollected:
         $ref: '#/components/messages/PostMetricsCollected'
+  experimentCreated:
+    address: growth.experiment.created
+    messages:
+      ExperimentCreated:
+        $ref: '#/components/messages/ExperimentCreated'
   experimentConcluded:
     address: growth.experiment.concluded
     messages:
@@ -182,6 +187,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/postMetricsCollected'
+  publishExperimentCreated:
+    action: send
+    channel:
+      $ref: '#/channels/experimentCreated'
   publishExperimentConcluded:
     action: send
     channel:
@@ -568,6 +577,26 @@ components:
               amountMinor: { type: integer, description: Money received, in integer minor units. }
               currency: { type: string, default: EUR }
               customerRef: { type: string }
+
+    ExperimentCreated:
+      name: ExperimentCreated
+      title: Experiment created
+      description: >
+        A governed experiment proposal was created (PRD 0007). Emitted by the Experimentation &
+        Growth context when `growth.experiment.create` persists a proposal; `businessId` scopes it
+        (multi-tenancy). The budget is a spend cap, not a cash movement.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, experimentId, hypothesis, armNames, budgetMinor]
+            properties:
+              businessId: { type: string }
+              experimentId: { type: string }
+              hypothesis: { type: string }
+              armNames: { type: array, items: { type: string } }
+              budgetMinor: { type: integer, description: Budget cap in integer minor units. }
+              status: { type: string, enum: [proposed, running, concluded], default: proposed }
 
     ExperimentConcluded:
       name: ExperimentConcluded

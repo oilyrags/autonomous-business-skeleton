@@ -37,6 +37,28 @@ class DecisionWrite(BaseModel):
     business_id: str | None = None  # scopes the decision to a business, when applicable
 
 
+class Arm(BaseModel):
+    """A named variant of the experience under test (control, treatment…)."""
+
+    name: str = Field(min_length=1)
+    description: str = ""
+    implementation_params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExperimentCreate(BaseModel):
+    """Args for the ``growth.experiment.create`` tool (PRD 0007). A governed experiment proposal:
+    tenant-scoped by ``business_id``, budget is a spend cap (not a cash move)."""
+
+    business_id: str = Field(min_length=1)
+    hypothesis: str = Field(min_length=1)
+    arms: list[Arm] = Field(min_length=2)  # a control + at least one variant
+    budget_minor: int = Field(gt=0)  # cap on the ad/LLM spend this experiment may incur
+    success_metrics: list[str] = Field(min_length=1)
+    duration_days: int = Field(default=14, gt=0)
+    target_sample_size: int | None = Field(default=None, gt=0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class NotifyExternal(BaseModel):
     """Args for the ``notify.external`` egress tool."""
 

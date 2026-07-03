@@ -179,6 +179,18 @@ class RevenueReceived(Envelope):
     customer_ref: str
 
 
+class ExperimentCreated(Envelope):
+    """A governed experiment proposal was created (PRD 0007). Emitted by the growth context when
+    ``growth.experiment.create`` persists a proposal; ``business_id`` scopes it (multi-tenancy)."""
+
+    business_id: str
+    experiment_id: str
+    hypothesis: str
+    arm_names: list[str]
+    budget_minor: int
+    status: str = "proposed"
+
+
 class ExperimentConcluded(Envelope):
     """The Experimentation & Growth context's decision on an experiment (scale/pivot/kill/
     continue). ``business_id`` scopes it to one business in the portfolio (multi-tenancy)."""

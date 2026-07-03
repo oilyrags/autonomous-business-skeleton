@@ -44,5 +44,15 @@ principal_serves_business if {
 	b == input.business_id
 }
 
+# PRD 0007: the growth design agent may create governed experiment proposals, tenant-bound.
+allow if {
+	input.action == "growth.experiment.create"
+	input.principal == "growth.experiment_design_agent"
+	principal_serves_business
+}
+
 # Per-principal tenant grants (mirror ab_gateway/authz.py; a real deployment loads this as OPA data).
-agent_businesses := {"executive.cmo_agent": ["*"]}
+agent_businesses := {
+	"executive.cmo_agent": ["*"],
+	"growth.experiment_design_agent": ["*"],
+}

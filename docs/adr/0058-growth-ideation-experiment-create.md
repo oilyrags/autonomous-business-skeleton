@@ -64,6 +64,20 @@ PRD 0007.
 - A clear, auditable determinism line: idea generation and scores are advisory; the create gate, the
   `decide` verdict, the budget cap, and the ideation threshold are deterministic and replayable.
 
+## Shipped
+
+- **E1 (tracer bullet — `growth.experiment.create`):** `ExperimentCreate`/`Arm` arg models +
+  `ExperimentCreated` event (AsyncAPI-documented); an `experiments` table + `ab_growth/store.py`
+  (`create`/`get`/`list_open`, idempotent on `experiment_id`, `business_id`-scoped, publishes the
+  event on a real insert); `tools.create_experiment` — validate → tenant bind (`authz`) →
+  affordability gate (shared `_require_ready_business` + `can_spend`, a read; **no cash moves**) →
+  persist → emit; registered in `REGISTRY` (`write`, `sensitive`); OPA rule + `authz` grant for
+  `growth.experiment_design_agent` (portfolio-wide, tenant-bound). 8 tests (6 infra-free: two-arm
+  rule, event shape, cross-tenant + bad-args denials, governed contract, authz; 2 infra-gated:
+  persists without moving cash + tenant-scoped read, affordability denial). Verified live: all 8
+  pass against real Postgres, and OPA authorizes the design agent (tenant-bound) while denying other
+  principals and the design agent's non-granted actions.
+
 ## Rejected / deferred
 
 Ledger earmark of budget; N-arm `decide`; a deterministic Bayesian/sequential test; new registry

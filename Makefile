@@ -1,4 +1,4 @@
-.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth ideate factory portfolio econ llm-budget loop revenue ads mvp sales obs playbook memory org sandbox social monitor monitor-submit console console-serve inboxiq demo-lite demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
+.PHONY: sync up up-infra down logs test lint typecheck fmt check data eval ledger compliance failsim growth ideate product factory portfolio econ llm-budget loop revenue ads mvp sales obs playbook memory org sandbox social monitor monitor-submit console console-serve inboxiq demo-lite demo build smoke wait-idp seed-vault spire-up spire-verify spire-mtls spire-mtls-verify spire-rotation-drill spire-secure-verify spire-bus-verify
 
 # Secure-by-default: the stack runs the full SPIFFE mTLS mesh; Postgres is network-isolated
 # and reachable only via its mTLS proxy. The in-process test suite uses `up-infra` (plaintext
@@ -103,6 +103,9 @@ growth:      ## experimentation engine demo — scale/pivot/kill decisions per b
 
 ideate:      ## governed ideation demo — ground → generate → score → gate → governed experiment
 	PYTHONPATH=src uv run python -m ab_growth.ideate_demo
+
+product:     ## product engineering demo — initiative → charter-conformant scaffold → gated SDLC → deploy
+	PYTHONPATH=src uv run python -m ab_product.product_demo
 
 portfolio:   ## portfolio allocation demo — recycle capital from losers into winners
 	PYTHONPATH=src uv run python -m ab_portfolio

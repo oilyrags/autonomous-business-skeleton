@@ -42,3 +42,31 @@ class StubProductModel:
             screens=["dashboard"],
             design_tokens=default_tokens(business_id),
         )
+
+
+class ModelGatewayProductModel:
+    """The real adapter: propose a ProductBlueprint via `model_gateway` (Portkey/GLM behind the eval
+    gate). Degrades SAFELY — when no eval-gated model is promoted or the output is malformed, it
+    returns the deterministic default blueprint rather than fabricating an un-grounded spec."""
+
+    def __init__(self, task_profile: str = "product_spec") -> None:
+        self._task_profile = task_profile
+
+    def spec(self, initiative: ProductInitiative, business_id: str) -> ProductBlueprint:
+        import json
+
+        from ab_gateway import model_gateway
+
+        prompt = (
+            f"Propose a ProductBlueprint for '{initiative.title}' (business '{business_id}'). "
+            f"Features: {initiative.key_features}. Return JSON with name, summary, features, screens, "
+            "design_tokens (primary, secondary, accent, neutral, base_100, radius_rem, font_family, density)."
+        )
+        raw = model_gateway.complete(self._task_profile, prompt)
+        if raw.startswith("[fallback:"):  # no eval-gated model — use the deterministic default
+            return StubProductModel().spec(initiative, business_id)
+        try:
+            payload = json.loads(raw)
+            return ProductBlueprint.model_validate({**payload, "business_id": business_id})
+        except (json.JSONDecodeError, ValueError):
+            return StubProductModel().spec(initiative, business_id)  # malformed → default, never guess

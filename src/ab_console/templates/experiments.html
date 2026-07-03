@@ -43,4 +43,55 @@
       </div>
     </div>
   {% endif %}
+
+  {% if businesses is defined %}
+    <div class="card bg-base-100 shadow max-w-2xl mt-8">
+      <div class="card-body">
+        <h2 class="card-title text-base">Propose an experiment</h2>
+        <p class="text-sm opacity-60 -mt-1 mb-2">Routed through the governed <code>growth.experiment.create</code> — tenant-bound, budget-capped, audited.</p>
+
+        {% if created %}
+          <div class="alert alert-success" role="status"><span>Experiment created: <strong>{{ created }}</strong></span></div>
+        {% elif propose_error %}
+          <div class="alert alert-warning" role="alert"><span>{{ propose_error }}</span></div>
+        {% endif %}
+
+        <form method="post" action="/experiments/propose" class="grid gap-3 mt-2">
+          <label class="form-control">
+            <span class="label-text text-xs opacity-60 mb-1">Business</span>
+            <select class="select select-bordered" name="business_id" required>
+              {% for b in businesses %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="form-control">
+            <span class="label-text text-xs opacity-60 mb-1">Hypothesis (required)</span>
+            <input class="input input-bordered" name="hypothesis" placeholder="a shorter headline lifts signups" required>
+          </label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="form-control">
+              <span class="label-text text-xs opacity-60 mb-1">Control</span>
+              <input class="input input-bordered" name="control_desc" placeholder="current experience">
+            </label>
+            <label class="form-control">
+              <span class="label-text text-xs opacity-60 mb-1">Treatment</span>
+              <input class="input input-bordered" name="treatment_desc" placeholder="the change under test">
+            </label>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="form-control">
+              <span class="label-text text-xs opacity-60 mb-1">Budget cap (€)</span>
+              <input class="input input-bordered" name="budget" inputmode="decimal" placeholder="500">
+            </label>
+            <label class="form-control">
+              <span class="label-text text-xs opacity-60 mb-1">Success metrics (comma-separated)</span>
+              <input class="input input-bordered" name="success_metrics" placeholder="activation_rate, d7_revenue">
+            </label>
+          </div>
+          <div class="card-actions">
+            <button type="submit" class="btn btn-primary">Propose experiment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
 {% endblock %}

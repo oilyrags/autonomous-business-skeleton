@@ -78,6 +78,14 @@ PRD 0007.
   pass against real Postgres, and OPA authorizes the design agent (tenant-bound) while denying other
   principals and the design agent's non-granted actions.
 
+- **E2 (console propose form):** a `GrowthPort` (stub + `HttpGrowthPort`) dispatches an operator's
+  proposal through the governed `growth.experiment.create` under the service-agent identity
+  (`growth.experiment_design_agent`), recording the verified operator as `maker` (dual attribution);
+  pure `build_proposal` turns form fields into an `ExperimentCreate`; `POST /experiments/propose`
+  behind operator auth + mutating role + origin check (VULN-001). Verified live: the authenticated
+  form renders and a POST returns 200 with the created experiment id. 5 tests (build_proposal ×2,
+  governed-port routing with real operator as maker, friendly budget error, read-only role 403).
+
 ## Rejected / deferred
 
 Ledger earmark of budget; N-arm `decide`; a deterministic Bayesian/sequential test; new registry

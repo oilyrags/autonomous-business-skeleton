@@ -8,10 +8,13 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
+from pydantic import ValidationError
+
 from ab_econ.core import UnitEconomics
 from ab_growth.experiment import Decision, Experiment
 from ab_monitor.check import CheckResult, CheckStatus
 from ab_obs.core import Anomaly, BusinessSnapshot, FleetTotals, fleet_totals
+from ab_schemas.models import Arm, ExperimentCreate
 
 _STATUS_RANK = {"OK": 0, "WARNING": 1, "CRITICAL": 2, "UNKNOWN": 3}
 
@@ -301,6 +304,37 @@ def decisions_view(
     """The approval queue, highest-authority first — the human-in-the-loop workspace."""
     ordered = sorted(pending, key=lambda d: (-d.required_level, d.decision_id))
     return DecisionsView(pending=ordered, acted=acted, error=error)
+
+
+# --- E2: propose an experiment (form → governed proposal) ------------------------------------------
+
+
+def build_proposal(
+    *,
+    business_id: str,
+    hypothesis: str,
+    control_desc: str,
+    treatment_desc: str,
+    budget_minor: int,
+    success_metrics: list[str],
+) -> ExperimentCreate:
+    """Assemble a control/treatment `ExperimentCreate` from the operator's form fields. Pure; raises
+    ValueError with a friendly message on invalid input (the route renders it, never a 500)."""
+    if not hypothesis.strip():
+        raise ValueError("A hypothesis is required.")
+    try:
+        return ExperimentCreate(
+            business_id=business_id,
+            hypothesis=hypothesis.strip(),
+            arms=[
+                Arm(name="control", description=control_desc.strip()),
+                Arm(name="treatment", description=treatment_desc.strip()),
+            ],
+            budget_minor=budget_minor,
+            success_metrics=[m for m in success_metrics if m],
+        )
+    except ValidationError as exc:
+        raise ValueError(f"Invalid proposal: {exc.error_count()} problem(s).") from exc
 
 
 # --- v0.3: daisyUI badge mapping (presentation only) -----------------------------------------------

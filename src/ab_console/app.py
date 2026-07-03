@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 
 from ab_console.approvals import ApprovalPort, StubApprovalPort
 from ab_console.auth import Operator, check_origin, require_mutator, require_operator
+from ab_console.growth_port import GrowthPort, StubGrowthPort
 from ab_console.killswitch_port import KillSwitchPort, StubKillSwitchPort
 from ab_console.stream import SAMPLE_EVENTS, sse_format
 from ab_console.viewmodels import (
@@ -31,6 +32,7 @@ from ab_console.viewmodels import (
     PendingDecision,
     action_badge,
     audit_view,
+    build_proposal,
     business_detail,
     decisions_view,
     experiments_view,
@@ -153,6 +155,7 @@ _SAMPLE_PENDING = [
 
 _STUB_KILLSWITCH = StubKillSwitchPort()
 _STUB_APPROVALS = StubApprovalPort()
+_STUB_GROWTH = StubGrowthPort()
 
 
 def fleet_provider() -> FleetView:
@@ -237,17 +240,82 @@ def business_page(
     return templates.TemplateResponse(request, "business.html", {"view": view, "chrome": chrome})
 
 
+def growth_port_provider() -> GrowthPort:
+    """The governed propose path. A live deploy returns HttpGrowthPort(token_provider=…)."""
+    return _STUB_GROWTH
+
+
 @app.get("/experiments", response_class=HTMLResponse)
 def experiments_page(
     request: Request,
     rows: Annotated[list[ExperimentRow], Depends(experiments_provider)],
+    snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
     _op: Annotated[Operator, Depends(require_operator)],
     business_id: str | None = None,
 ) -> HTMLResponse:
     view = experiments_view(rows, business_id=business_id)
     chrome = _chrome("experiments", ks, 0)
-    return templates.TemplateResponse(request, "experiments.html", {"view": view, "chrome": chrome})
+    return templates.TemplateResponse(
+        request,
+        "experiments.html",
+        {"view": view, "chrome": chrome, "businesses": [s.business_id for s in snapshots]},
+    )
+
+
+@app.post("/experiments/propose", response_class=HTMLResponse)
+async def experiments_propose(
+    request: Request,
+    rows: Annotated[list[ExperimentRow], Depends(experiments_provider)],
+    snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    operator: Annotated[Operator, Depends(require_operator)],
+    port: Annotated[GrowthPort, Depends(growth_port_provider)],
+) -> HTMLResponse:
+    """Propose an experiment through the governed GrowthPort — the console does nothing an agent
+    couldn't; the real operator is recorded as maker (VULN-001 + PRD 0007 E2)."""
+    require_mutator(operator)  # proposing spends against a business's runway cap — a mutating action
+    check_origin(request)  # CSRF defense in depth
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    form = {k: v[0] for k, v in parse_qs(raw).items()}
+    chrome = _chrome("experiments", ks, 0)
+
+    def _render(
+        *, created: str | None = None, error: str | None = None, status_code: int = 200
+    ) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request,
+            "experiments.html",
+            {
+                "view": experiments_view(rows),
+                "chrome": chrome,
+                "businesses": [s.business_id for s in snapshots],
+                "created": created,
+                "propose_error": error,
+            },
+            status_code=status_code,
+        )
+
+    try:
+        budget_minor = round(float(form.get("budget", "")) * 100)
+    except ValueError:
+        return _render(error="Budget must be a number (e.g. 500).", status_code=400)
+    try:
+        proposal = build_proposal(
+            business_id=form.get("business_id", ""),
+            hypothesis=form.get("hypothesis", ""),
+            control_desc=form.get("control_desc", ""),
+            treatment_desc=form.get("treatment_desc", ""),
+            budget_minor=budget_minor,
+            success_metrics=[m.strip() for m in form.get("success_metrics", "").split(",")],
+        )
+    except ValueError as exc:
+        return _render(error=str(exc), status_code=400)
+
+    outcome = port.create(proposal, maker=operator.id)
+    if not outcome.ok:
+        return _render(error=f"Proposal failed: {outcome.detail}", status_code=502)
+    return _render(created=outcome.experiment_id)
 
 
 @app.get("/audit", response_class=HTMLResponse)

@@ -19,7 +19,7 @@ import asyncio
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from ab_growth.ideate import (
     GroundingSource,
@@ -28,7 +28,7 @@ from ab_growth.ideate import (
     StubGroundingSource,
     ideate,
 )
-from ab_growth.multiagent import AgentTrace
+from ab_growth.multiagent import AgentTrace, StepHook
 
 Frame = dict[str, object]  # a JSON-serializable SSE frame
 _DEFAULT_MAX_RUNS = 32
@@ -58,6 +58,13 @@ class RunState:
 class _Run:
     state: RunState
     queue: asyncio.Queue[Frame | None]  # a None sentinel marks end-of-stream
+
+
+@runtime_checkable
+class _SupportsProgress(Protocol):
+    """A model that can report per-agent progress (e.g. the multi-agent adapter)."""
+
+    on_step: StepHook | None
 
 
 class IdeationRunner(Protocol):
@@ -125,9 +132,16 @@ class InProcessIdeationRunner:
     async def _run(self, run_id: str) -> None:
         run = self._runs[run_id]
         state = run.state
+        loop = asyncio.get_running_loop()
         await run.queue.put({"type": "started", "run_id": run_id, "business_id": state.business_id})
+
+        def _emit_step(step: str, status: str) -> None:
+            # called from the pipeline's worker/generator threads — marshal onto the event loop
+            frame: Frame = {"type": "progressed", "step": step, "status": status}
+            loop.call_soon_threadsafe(run.queue.put_nowait, frame)
+
         try:
-            result, trace = await asyncio.get_running_loop().run_in_executor(None, self._pipeline, state)
+            result, trace = await loop.run_in_executor(None, self._pipeline, state, _emit_step)
             state.result = result
             state.trace = trace
             state.status = RunStatus.COMPLETE
@@ -143,10 +157,15 @@ class InProcessIdeationRunner:
                 self._active.pop(state.business_id, None)
             await run.queue.put(None)  # terminate any stream consumer
 
-    def _pipeline(self, state: RunState) -> tuple[IdeationResult, AgentTrace | None]:
+    def _pipeline(
+        self, state: RunState, on_step: StepHook
+    ) -> tuple[IdeationResult, AgentTrace | None]:
         """The blocking pipeline, run in a worker thread. Returns the result plus the model's advisory
-        trace (if it exposes one). The gate inside `ideate()` stays authoritative."""
+        trace (if it exposes one). Attaches the progress hook to a progress-capable model (A2). The
+        gate inside `ideate()` stays authoritative."""
         model = self._model_factory()
+        if isinstance(model, _SupportsProgress):
+            model.on_step = on_step
         result = ideate(
             state.business_id,
             state.prompt,

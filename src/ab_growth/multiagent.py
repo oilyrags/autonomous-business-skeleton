@@ -15,13 +15,16 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 from ab_growth.ideate import GroundingReport, IdeaCandidate
 
 # (task_profile, prompt) -> raw model text. The one seam the whole pipeline is pure over.
 AgentCall = Callable[[str, str], str]
+# (step_name, status) -> None. An optional progress hook: fires as each agent finishes (PRD 0011 A2),
+# so a runner can stream per-agent progress. Advisory — never influences the pipeline or the gate.
+StepHook = Callable[[str, str], None]
 
 # The three generator lenses (personas). One model + one profile; the persona is the only difference.
 GENERATORS: tuple[tuple[str, str], ...] = (
@@ -143,6 +146,13 @@ class MultiAgentIdeationModel:
         self._call = agent_call or _gateway_call
         self._profile = task_profile
         self.last_trace: AgentTrace = AgentTrace()
+        self.on_step: StepHook | None = None  # set by a runner to stream per-agent progress (A2)
+
+    def _emit(self, step: str, status: str) -> None:
+        """Fire the progress hook (if any). Called from generator worker threads and the propose
+        thread, so the hook must be thread-safe — the runner marshals onto its event loop."""
+        if self.on_step is not None:
+            self.on_step(step, status)
 
     def _safe_call(self, prompt: str) -> str:
         """A generator call that degrades to an abstain marker instead of raising — so one flaky
@@ -161,9 +171,14 @@ class MultiAgentIdeationModel:
             (lens, _generator_prompt(business_id, persona, grounding, count))
             for lens, persona in GENERATORS
         ]
+        results: dict[str, str] = {}
         with ThreadPoolExecutor(max_workers=len(prompts)) as pool:
-            raws = list(pool.map(lambda item: self._safe_call(item[1]), prompts))
-        return [(lens, raw) for (lens, _prompt), raw in zip(prompts, raws, strict=True)]
+            futures = {pool.submit(self._safe_call, prompt): lens for lens, prompt in prompts}
+            for future in as_completed(futures):  # emit as each finishes (order varies; UI keyed by name)
+                lens = futures[future]
+                results[lens] = future.result()
+                self._emit(lens, "done")
+        return [(lens, results[lens]) for lens, _prompt in prompts]  # ordered for a deterministic trace
 
     def propose(self, business_id: str, grounding: GroundingReport, count: int) -> list[IdeaCandidate]:
         generators = self._run_generators(business_id, grounding, count)
@@ -171,12 +186,15 @@ class MultiAgentIdeationModel:
         for _lens, raw in generators:
             pool.extend(_parse_candidates(raw))
 
-        critique = self._call(self._profile, _critic_prompt(pool, grounding)) if pool else ""
-        synthesis = (
-            self._call(self._profile, _synthesizer_prompt(business_id, pool, critique, grounding, count))
-            if pool
-            else ""
-        )
+        critique = ""
+        synthesis = ""
+        if pool:
+            critique = self._call(self._profile, _critic_prompt(pool, grounding))
+            self._emit("critic", "done")
+            synthesis = self._call(
+                self._profile, _synthesizer_prompt(business_id, pool, critique, grounding, count)
+            )
+            self._emit("synthesizer", "done")
         self.last_trace = AgentTrace(generators=generators, critique=critique, synthesis=synthesis)
 
         final = _parse_candidates(synthesis)[:count]

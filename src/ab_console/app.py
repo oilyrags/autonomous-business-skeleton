@@ -61,7 +61,7 @@ from ab_growth.ideate import (
 )
 from ab_growth.ideation_runner import IdeationRunner, InProcessIdeationRunner
 from ab_growth.kpis import experiment_gauges, experiment_kpis
-from ab_growth.multiagent import AgentTrace, MultiAgentIdeationModel
+from ab_growth.multiagent import AgentTrace, MultiAgentIdeationModel, StepHook
 from ab_growth.proposer import ExperimentProposer, StubExperimentProposer
 from ab_growth.store import ExperimentRecord
 from ab_monitor.check import CheckResult, CheckStatus, cert_expiry_check, slo_burn_check
@@ -407,6 +407,15 @@ class _StubFallbackModel:
     @property
     def last_trace(self) -> AgentTrace | None:
         return getattr(self._primary, "last_trace", None)
+
+    @property
+    def on_step(self) -> StepHook | None:  # forward the runner's progress hook to the wrapped model
+        return getattr(self._primary, "on_step", None)
+
+    @on_step.setter
+    def on_step(self, hook: StepHook | None) -> None:
+        if hasattr(self._primary, "on_step"):
+            self._primary.on_step = hook
 
 
 def _ideation_model() -> IdeationModel:

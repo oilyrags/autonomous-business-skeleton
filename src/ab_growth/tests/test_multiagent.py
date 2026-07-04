@@ -104,6 +104,25 @@ def test_multiagent_demo_runs_to_proceed_candidates() -> None:
     assert run(verbose=False) == 0  # the canned pipeline reaches gated PROCEED candidates
 
 
+def test_on_step_fires_once_per_agent_in_the_roster() -> None:
+    # PRD 0011 A2: the progress hook fires as each of the 5 agents finishes, so a runner can stream
+    # per-agent progress. Generators complete out of order (concurrent), critic then synthesizer last.
+    agent = _FakeAgent()
+    model = MultiAgentIdeationModel(agent_call=agent)
+    lock = threading.Lock()
+    steps: list[str] = []
+
+    def hook(step: str, status: str) -> None:
+        with lock:  # generators fire from worker threads
+            steps.append(step)
+
+    model.on_step = hook
+    model.propose("b", _GROUNDING, count=2)
+
+    assert set(steps) == {"market_gap", "adjacent_expansion", "contrarian", "critic", "synthesizer"}
+    assert steps[-2:] == ["critic", "synthesizer"]  # the sequential tail keeps its order
+
+
 def test_parser_coerces_string_arms_and_json_fences() -> None:
     from ab_growth.multiagent import _parse_candidates
 

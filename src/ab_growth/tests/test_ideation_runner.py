@@ -86,6 +86,35 @@ def test_a_failing_pipeline_terminates_the_stream_with_a_failed_frame() -> None:
     assert status is RunStatus.FAILED
 
 
+def test_progress_frames_stream_between_started_and_complete() -> None:
+    # PRD 0011 A2: a progress-capable model (the multi-agent adapter) streams a `progressed` frame per
+    # agent, framed by started…complete. Uses a canned agent_call so it's model-free.
+    from ab_growth.multiagent import MultiAgentIdeationModel
+
+    def _canned(profile: str, prompt: str) -> str:
+        p = prompt.lower()
+        if "synthesizer" in p:
+            return _arr(_SAMPLE)
+        if "red-team critic" in p:
+            return "ok"
+        return _arr(_SAMPLE)  # each generator
+
+    async def scenario() -> list[dict[str, object]]:
+        runner = InProcessIdeationRunner(model_factory=lambda: MultiAgentIdeationModel(agent_call=_canned))
+        run_id = runner.start("acme", "p", operator="op")
+        return await _drain(runner, run_id)
+
+    frames = asyncio.run(scenario())
+    types = [f["type"] for f in frames]
+    assert types[0] == "started" and types[-1] == "complete"
+    steps = {f["step"] for f in frames if f["type"] == "progressed"}
+    assert steps == {"market_gap", "adjacent_expansion", "contrarian", "critic", "synthesizer"}
+
+
+def _arr(cand: IdeaCandidate) -> str:
+    return "[" + cand.model_dump_json() + "]"
+
+
 def test_snapshot_is_none_for_an_unknown_run() -> None:
     runner = InProcessIdeationRunner(model_factory=StubIdeationModel)
     assert runner.snapshot("run_nope") is None

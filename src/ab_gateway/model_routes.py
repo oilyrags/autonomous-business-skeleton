@@ -51,4 +51,10 @@ ROUTES: dict[str, TaskRoute] = {
     "executive_reasoning": _route_from_env(
         "executive_reasoning", default_model="gpt-4o-mini", params={"temperature": 0.2}
     ),
+    # Multi-agent idea innovation (PRD 0010). GLM-5.2 is a reasoning model — it spends tokens
+    # "thinking" and returns EMPTY content on a small budget, so default a generous max_tokens.
+    # Higher temperature for creative divergence across the generator lenses.
+    "ideation": _route_from_env(
+        "ideation", default_model="z-ai/glm-5.2", params={"temperature": 0.8, "max_tokens": 8192}
+    ),
 }

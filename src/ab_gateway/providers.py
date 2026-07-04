@@ -92,10 +92,26 @@ class PortkeyModel:
         return client
 
 
+def _openrouter_model() -> Model:
+    """GLM-5.2 (and any OpenRouter model) direct: OpenRouter is OpenAI-compatible, so reuse
+    `PortkeyModel` with an injected OpenAI client pointed at OpenRouter (PRD 0010). The task-profile
+    route (e.g. `ideation` → z-ai/glm-5.2) still selects the model + params. Key from AB_OPENROUTER_API_KEY."""
+    from openai import OpenAI  # lazy: only for AB_MODEL_PROVIDER=openrouter (optional models extra)
+
+    key = os.environ.get("AB_OPENROUTER_API_KEY")
+    if not key:
+        raise RuntimeError("AB_OPENROUTER_API_KEY is required for the OpenRouter provider")
+    base_url = os.environ.get("AB_OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    # OpenAI's client is structurally an OpenAI-compatible chat client (matches ChatClient); type as
+    # Any so mypy is consistent whether or not the optional `openai` extra is installed.
+    client: Any = OpenAI(base_url=base_url, api_key=key)
+    return PortkeyModel(client=client, version="openrouter")
+
+
 def select_model() -> Model:
     """Pick the served model from the environment via the shared per-port selector (PRD 0009 S1).
     Defaults to the offline stub; the model seam is advisory (abstains safely) so it is not critical."""
-    real: dict[str, Callable[[], Model]] = {"portkey": PortkeyModel}
+    real: dict[str, Callable[[], Model]] = {"portkey": PortkeyModel, "openrouter": _openrouter_model}
     return select_adapter("model", stub=StubModel, real=real)
 
 

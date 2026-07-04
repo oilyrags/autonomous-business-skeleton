@@ -60,6 +60,7 @@ from ab_growth.ideate import (
     ideate,
 )
 from ab_growth.kpis import experiment_gauges, experiment_kpis
+from ab_growth.multiagent import MultiAgentIdeationModel
 from ab_growth.proposer import ExperimentProposer, StubExperimentProposer
 from ab_growth.store import ExperimentRecord
 from ab_monitor.check import CheckResult, CheckStatus, cert_expiry_check, slo_burn_check
@@ -378,7 +379,10 @@ def run_ideation(business_id: str, prompt: str) -> IdeationResult:
     the real ModelGatewayIdeationModel (GLM via model_gateway, eval-gated) — which is why this runs
     only on an explicit operator trigger, never a GET. The real adapter abstains safely when no model
     is promoted, so fall back to the deterministic stub to keep the workspace usable."""
-    real: dict[str, Callable[[], IdeationModel]] = {"modelgateway": ModelGatewayIdeationModel}
+    real: dict[str, Callable[[], IdeationModel]] = {
+        "modelgateway": ModelGatewayIdeationModel,
+        "multiagent": MultiAgentIdeationModel,  # PRD 0010: generators→critic→synthesizer over GLM-5.2
+    }
     model = select_adapter("ideation", stub=StubIdeationModel, real=real)
     grounding = StubGroundingSource()
     result = ideate(business_id, prompt, model=model, grounding=grounding, count=3)

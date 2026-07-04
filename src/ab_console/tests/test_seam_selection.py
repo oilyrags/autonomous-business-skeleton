@@ -23,3 +23,11 @@ def test_ideation_stays_usable_under_modelgateway_without_a_promoted_model(monke
     monkeypatch.setenv("AB_IDEATION_PROVIDER", "modelgateway")
     result = app.run_ideation("rocket", "lift activation")
     assert len(result.judged) > 0  # cards rendered via the safe fallback
+
+
+def test_multiagent_ideation_selectable_and_stays_usable(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    # PRD 0010: AB_IDEATION_PROVIDER=multiagent runs the generators→critic→synthesizer adapter; with
+    # no GLM promoted it abstains, so run_ideation falls back to the stub and still renders cards
+    monkeypatch.setenv("AB_IDEATION_PROVIDER", "multiagent")
+    result = app.run_ideation("rocket", "lift activation")
+    assert len(result.judged) > 0

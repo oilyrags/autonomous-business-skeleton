@@ -67,7 +67,9 @@ business-scoped call is a follow-up (the fixed 5-calls/run bounds cost predictab
   `model_gateway.complete`); `AgentTrace`; degrade-safe. Model-free CI.
 - **M2** (`124f727`) `ideation` route → `z-ai/glm-5.2` (generous `max_tokens`); an `openrouter`
   provider (reuses `PortkeyModel` + an injected OpenAI client); `AB_IDEATION_PROVIDER=multiagent`.
-  **Live GLM verification blocked** — the key in `api-keys/openrouter_api` 401s (not `sk-or-v1-`).
+  **Live-verified 2026-07-04** with a valid `sk-or-v1-` key: GLM-5.2 eval-promoted for `ideation`
+  (audited `ModelPromoted`); a live run innovated 3 grounded PROCEED candidates. Real-model JSON needed
+  coercion (arms-as-strings, ```json fences). Generators run concurrently (`97dd275`, ~2.2× faster).
 - **M3** (`5007ab7`) the advisory `AgentTrace` surfaces in `/growth` as a collapsible section, distinct
   from the verdict chips.
 - **M4** `make ideate-multiagent` (canned, infra-free) runs the pipeline → gated PROCEED candidates;

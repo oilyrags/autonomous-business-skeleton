@@ -7,8 +7,10 @@
 > (eval gate + `complete`, `llm_budget` metering), `ab_gateway/model_routes.py` (`TaskRoute`/`ROUTES`),
 > the PRD 0009 machinery (`AB_IDEATION_PROVIDER` selection, persisted `eval-promote`, eval suites), and
 > the `ab_console` `/growth` E7 workspace. Tracker: no `gh` → issues under `.scratch/ideate/`.
-> **Status: M1–M4 shipped (code + infra-free demo/tests green). Live GLM-5.2 blocked on a valid
-> OpenRouter key — the one in `api-keys/openrouter_api` 401s / isn't `sk-or-v1-` format.**
+> **Status: M1–M4 shipped + LIVE-VERIFIED (2026-07-04) with a valid OpenRouter key — GLM-5.2
+> eval-promoted for `ideation` (audited `ModelPromoted`); a live run innovated 3 grounded PROCEED
+> candidates in the browser console. Generators run concurrently (`97dd275`). Async/streaming UX is the
+> PRD 0011 follow-up.**
 
 ## Problem statement
 

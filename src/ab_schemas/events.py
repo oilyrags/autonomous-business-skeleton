@@ -286,3 +286,32 @@ class CapitalReallocationRecommended(Envelope):
     action: str  # invest_more | hold | starve | sunset
     capital_delta: int  # recommended change to deployed capital (minor units)
     reason: str
+
+
+class IdeationRunStarted(Envelope):
+    """An operator triggered an async multi-agent ideation run (PRD 0011). The lifecycle fact for
+    audit + the live feed; per-agent progress is SSE-only (advisory transport, not a durable fact)."""
+
+    business_id: str
+    run_id: str
+    operator: str
+    prompt: str
+
+
+class IdeationRunCompleted(Envelope):
+    """An async ideation run finished (PRD 0011). ``proceed_count`` of ``candidate_count`` cleared the
+    deterministic gate. ``business_id``-scoped."""
+
+    business_id: str
+    run_id: str
+    candidate_count: int
+    proceed_count: int
+
+
+class IdeationRunFailed(Envelope):
+    """An async ideation run ended without a result (PRD 0011): kill-switch abort, timeout, or error.
+    The terminal fact so a detached run never silently vanishes. ``business_id``-scoped."""
+
+    business_id: str
+    run_id: str
+    reason: str

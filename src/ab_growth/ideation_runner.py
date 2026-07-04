@@ -29,8 +29,17 @@ from ab_growth.ideate import (
     ideate,
 )
 from ab_growth.multiagent import AgentTrace, StepHook
+from ab_schemas.events import (
+    Envelope,
+    IdeationRunCompleted,
+    IdeationRunFailed,
+    IdeationRunStarted,
+    build,
+)
 
 Frame = dict[str, object]  # a JSON-serializable SSE frame
+EventSink = Callable[[Envelope], None]  # publishes a lifecycle event (bus/audit); injected, may block
+_PRODUCER = "growth.ideation_runner"
 _DEFAULT_MAX_RUNS = 32
 
 
@@ -89,11 +98,13 @@ class InProcessIdeationRunner:
         grounding_factory: Callable[[], GroundingSource] = StubGroundingSource,
         count: int = 3,
         max_runs: int = _DEFAULT_MAX_RUNS,
+        event_sink: EventSink | None = None,
     ) -> None:
         self._model_factory = model_factory
         self._grounding_factory = grounding_factory
         self._count = count
         self._max_runs = max_runs
+        self._event_sink = event_sink
         self._runs: dict[str, _Run] = {}
         self._active: dict[str, str] = {}  # business_id -> the in-flight run_id
         self._seq = 0
@@ -134,6 +145,18 @@ class InProcessIdeationRunner:
         state = run.state
         loop = asyncio.get_running_loop()
         await run.queue.put({"type": "started", "run_id": run_id, "business_id": state.business_id})
+        await self._publish(
+            loop,
+            build(
+                IdeationRunStarted,
+                subject=("business", state.business_id),
+                producer=_PRODUCER,
+                business_id=state.business_id,
+                run_id=run_id,
+                operator=state.operator,
+                prompt=state.prompt,
+            ),
+        )
 
         def _emit_step(step: str, status: str) -> None:
             # called from the pipeline's worker/generator threads — marshal onto the event loop
@@ -148,14 +171,47 @@ class InProcessIdeationRunner:
             await run.queue.put(
                 {"type": "complete", "run_id": run_id, "candidate_count": len(result.judged)}
             )
+            await self._publish(
+                loop,
+                build(
+                    IdeationRunCompleted,
+                    subject=("business", state.business_id),
+                    producer=_PRODUCER,
+                    business_id=state.business_id,
+                    run_id=run_id,
+                    candidate_count=len(result.judged),
+                    proceed_count=len(result.proceed),
+                ),
+            )
         except Exception as exc:  # noqa: BLE001 - a detached run must surface, not swallow, failure
             state.status = RunStatus.FAILED
             state.reason = str(exc) or exc.__class__.__name__
             await run.queue.put({"type": "failed", "run_id": run_id, "reason": state.reason})
+            await self._publish(
+                loop,
+                build(
+                    IdeationRunFailed,
+                    subject=("business", state.business_id),
+                    producer=_PRODUCER,
+                    business_id=state.business_id,
+                    run_id=run_id,
+                    reason=state.reason,
+                ),
+            )
         finally:
             if self._active.get(state.business_id) == run_id:
                 self._active.pop(state.business_id, None)
             await run.queue.put(None)  # terminate any stream consumer
+
+    async def _publish(self, loop: asyncio.AbstractEventLoop, event: Envelope) -> None:
+        """Emit a lifecycle event through the injected sink, off the event loop (the sink may block on
+        the bus). No sink (CI/dev without a bus) → a no-op; a sink failure never sinks the run."""
+        if self._event_sink is None:
+            return
+        try:
+            await loop.run_in_executor(None, self._event_sink, event)
+        except Exception:  # noqa: BLE001 - the bus is best-effort; the run's result is authoritative
+            pass
 
     def _pipeline(
         self, state: RunState, on_step: StepHook

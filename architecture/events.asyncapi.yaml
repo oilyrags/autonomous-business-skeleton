@@ -142,6 +142,15 @@ channels:
     messages:
       CapitalReallocationRecommended:
         $ref: '#/components/messages/CapitalReallocationRecommended'
+  ideationRun:
+    address: growth.ideation.run
+    messages:
+      IdeationRunStarted:
+        $ref: '#/components/messages/IdeationRunStarted'
+      IdeationRunCompleted:
+        $ref: '#/components/messages/IdeationRunCompleted'
+      IdeationRunFailed:
+        $ref: '#/components/messages/IdeationRunFailed'
   modelPromoted:
     address: mlops.model.promoted
     messages:
@@ -230,6 +239,10 @@ operations:
     action: send
     channel:
       $ref: '#/channels/capitalReallocationRecommended'
+  publishIdeationRun:
+    action: send
+    channel:
+      $ref: '#/channels/ideationRun'
   publishModelPromoted:
     action: send
     channel:
@@ -732,6 +745,59 @@ components:
               businessId: { type: string }
               action: { type: string, enum: [invest_more, hold, starve, sunset] }
               capitalDelta: { type: integer, description: Recommended change to deployed capital (minor units). }
+              reason: { type: string }
+
+    IdeationRunStarted:
+      name: IdeationRunStarted
+      title: Ideation run started
+      tags: [{ name: growth }]
+      description: >
+        An operator triggered an async multi-agent ideation run (PRD 0011). The lifecycle fact for
+        audit + the live feed; per-agent progress is SSE-only (advisory transport, not a durable fact).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, runId, operator, prompt]
+            properties:
+              businessId: { type: string }
+              runId: { type: string }
+              operator: { type: string }
+              prompt: { type: string }
+
+    IdeationRunCompleted:
+      name: IdeationRunCompleted
+      title: Ideation run completed
+      tags: [{ name: growth }]
+      description: >
+        An async ideation run finished (PRD 0011); proceedCount of candidateCount cleared the
+        deterministic gate.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, runId, candidateCount, proceedCount]
+            properties:
+              businessId: { type: string }
+              runId: { type: string }
+              candidateCount: { type: integer }
+              proceedCount: { type: integer }
+
+    IdeationRunFailed:
+      name: IdeationRunFailed
+      title: Ideation run failed
+      tags: [{ name: growth }]
+      description: >
+        An async ideation run ended without a result (PRD 0011): kill-switch abort, timeout, or error
+        — the terminal fact so a detached run never silently vanishes.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            required: [businessId, runId, reason]
+            properties:
+              businessId: { type: string }
+              runId: { type: string }
               reason: { type: string }
 
     ModelPromoted:

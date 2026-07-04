@@ -115,6 +115,54 @@ def _arr(cand: IdeaCandidate) -> str:
     return "[" + cand.model_dump_json() + "]"
 
 
+def test_lifecycle_events_are_emitted_to_the_sink() -> None:
+    # PRD 0011 A3: the runner emits IdeationRunStarted then a terminal IdeationRunCompleted to the
+    # injected sink (bus/audit). The candidate/proceed counts come from the deterministic gate.
+    events: list[object] = []
+
+    async def scenario() -> str:
+        runner = InProcessIdeationRunner(model_factory=StubIdeationModel, event_sink=events.append)
+        run_id = runner.start("acme", "lift activation", operator="op.alice")
+        await _drain(runner, run_id)
+        return run_id
+
+    run_id = asyncio.run(scenario())
+    names = [type(e).__name__ for e in events]
+    assert names == ["IdeationRunStarted", "IdeationRunCompleted"]
+    started, completed = events
+    assert started.business_id == "acme" and started.run_id == run_id  # type: ignore[attr-defined]
+    assert started.operator == "op.alice"  # type: ignore[attr-defined]
+    assert completed.candidate_count == 3 and completed.proceed_count == 1  # type: ignore[attr-defined]
+
+
+def test_a_failed_run_emits_ideationrunfailed() -> None:
+    events: list[object] = []
+
+    class _Boom:
+        def propose(self, business_id: str, grounding: GroundingReport, count: int) -> list[IdeaCandidate]:
+            raise RuntimeError("model exploded")
+
+    async def scenario() -> None:
+        runner = InProcessIdeationRunner(model_factory=_Boom, event_sink=events.append)
+        run_id = runner.start("acme", "p", operator="op")
+        await _drain(runner, run_id)
+
+    asyncio.run(scenario())
+    assert [type(e).__name__ for e in events] == ["IdeationRunStarted", "IdeationRunFailed"]
+    assert events[-1].reason  # type: ignore[attr-defined]
+
+
+def test_no_sink_means_no_publish_and_no_crash() -> None:
+    # dev/CI without a bus: the runner takes no sink and still completes cleanly
+    async def scenario() -> str:
+        runner = InProcessIdeationRunner(model_factory=StubIdeationModel)  # no event_sink
+        run_id = runner.start("acme", "p", operator="op")
+        frames = await _drain(runner, run_id)
+        return frames[-1]["type"]  # type: ignore[return-value]
+
+    assert asyncio.run(scenario()) == "complete"
+
+
 def test_snapshot_is_none_for_an_unknown_run() -> None:
     runner = InProcessIdeationRunner(model_factory=StubIdeationModel)
     assert runner.snapshot("run_nope") is None

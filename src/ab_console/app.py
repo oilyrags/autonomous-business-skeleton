@@ -71,6 +71,7 @@ from ab_obs.core import Anomaly, AnomalyKind, BusinessSnapshot
 from ab_ops.reliability import ErrorBudget
 from ab_product.kpis import product_gauges, product_kpis
 from ab_product.pipeline import PipelineState, Stage
+from ab_schemas.events import Envelope
 
 # PRD 0009 S4: store-backed read panels go live in-process when AB_CONSOLE_PROVIDER=live; sample by
 # default. (fleet/snapshots/econ/checks stay sample pending a console LedgerView adapter.)
@@ -430,7 +431,19 @@ def _ideation_model() -> IdeationModel:
     return model if isinstance(model, StubIdeationModel) else _StubFallbackModel(model)
 
 
-_IDEATION_RUNNER: IdeationRunner = InProcessIdeationRunner(model_factory=_ideation_model)
+def _ideation_event_sink(event: Envelope) -> None:
+    """Publish an ideation lifecycle event to the bus (audit + live feed). Wired only when a live bus
+    is expected (AB_CONSOLE_PROVIDER=live); dev/CI has no bus, so the runner gets no sink."""
+    from ab_common import bus
+    from ab_common.config import settings
+
+    bus.publish_event(settings.ideation_topic, key=event.subject_ref.id, event=event)
+
+
+_IDEATION_RUNNER: IdeationRunner = InProcessIdeationRunner(
+    model_factory=_ideation_model,
+    event_sink=_ideation_event_sink if _CONSOLE_LIVE else None,
+)
 
 
 def ideation_runner_provider() -> IdeationRunner:

@@ -46,6 +46,7 @@ class Settings:
     experiment_concluded_topic: str = os.environ.get(
         "AB_EXPERIMENT_CONCLUDED_TOPIC", "growth.experiment.concluded"
     )
+    ideation_topic: str = os.environ.get("AB_IDEATION_TOPIC", "growth.ideation.run")
     product_topic: str = os.environ.get("AB_PRODUCT_TOPIC", "product.initiative.scaffolded")
     product_stage_topic: str = os.environ.get("AB_PRODUCT_STAGE_TOPIC", "product.initiative.stage_changed")
     product_deployed_topic: str = os.environ.get("AB_PRODUCT_DEPLOYED_TOPIC", "product.initiative.deployed")

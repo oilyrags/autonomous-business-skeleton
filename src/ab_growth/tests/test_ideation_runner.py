@@ -240,6 +240,12 @@ def test_snapshot_is_none_for_an_unknown_run() -> None:
     assert runner.snapshot("run_nope") is None
 
 
+def test_ideation_runner_demo_completes() -> None:
+    from ab_growth.ideation_runner_demo import run
+
+    assert run(verbose=False) == 0  # the canned async pipeline streams to a gated completion
+
+
 def test_grounding_factory_is_injectable() -> None:
     # a candidate-free model still completes cleanly (0 candidates, not a crash)
     class _Empty:

@@ -18,7 +18,7 @@ from typing import Annotated
 from urllib.parse import parse_qs
 
 from fastapi import Depends, FastAPI, Request, Response
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
@@ -59,7 +59,7 @@ from ab_growth.ideate import (
     ModelGatewayIdeationModel,
     StubIdeationModel,
 )
-from ab_growth.ideation_runner import IdeationRunner, InProcessIdeationRunner
+from ab_growth.ideation_runner import IdeationRunner, InProcessIdeationRunner, RunStatus
 from ab_growth.kpis import experiment_gauges, experiment_kpis
 from ab_growth.multiagent import (
     AbortCheck,
@@ -570,6 +570,27 @@ async def growth_ideate_stream(
                 yield frame
 
     return StreamingResponse(sse_format_async(frames()), media_type="text/event-stream")
+
+
+@app.get("/growth/ideate/{run_id}", response_class=HTMLResponse)
+def growth_ideate_snapshot(
+    request: Request,
+    run_id: str,
+    rows: Annotated[list[ExperimentRow], Depends(experiments_provider)],
+    snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
+    ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
+    runner: Annotated[IdeationRunner, Depends(ideation_runner_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
+) -> Response:
+    """Reload a run (PRD 0011 A5): re-attach to the SSE stream if it's still running, show the gated
+    cards if it finished, or bounce to /growth if the run is unknown (e.g. dropped on a restart)."""
+    state = runner.snapshot(run_id)
+    if state is None:
+        return RedirectResponse("/growth", status_code=303)
+    if state.status is RunStatus.RUNNING:
+        return _render_growth(request, ks, rows, snapshots, run_id=run_id)  # re-open the stream
+    view = ideation_workspace(state.result, trace=state.trace) if state.result is not None else None
+    return _render_growth(request, ks, rows, snapshots, view=view)
 
 
 # --- P3: /product workspace (gated SDLC + human gates) ---------------------------------------------

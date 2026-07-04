@@ -88,7 +88,11 @@ _Avoid_: MVP, prototype, spike (those imply throwaway or scope, not a load-beari
 > decide → `conclude`); an `ideate` engine (ground→generate→score→gate→design, ports+stub LLM); and
 > `kpis` surfaced on the console `/metrics` (M5 rail) → Grafana. The ideation `IdeationModel` seam now
 > has a **multi-agent GLM-5.2 adapter** (PRD 0010): 3 generators → critic → synthesizer (advisory);
-> the pure `ideation_gate` still decides; selected by `AB_IDEATION_PROVIDER=multiagent`.
+> the pure `ideation_gate` still decides; selected by `AB_IDEATION_PROVIDER=multiagent`. That run is
+> **async + streaming** (PRD 0011): an `IdeationRunner` port runs it off the request; `POST
+> /growth/ideate` returns immediately and the console streams each agent over per-run SSE (reusing the
+> `EventSource` rail) → gated cards; `IdeationRun*` lifecycle events hit the bus; a kill-switch
+> pre-check + mid-run abort + whole-run timeout bound it (a detached-agent adapter fits the same port).
 
 ### Examples (not bounded contexts)
 - [ab_examples](./src/ab_examples/CONTEXT.md) — worked examples composing the contexts end to end (`inboxiq`)

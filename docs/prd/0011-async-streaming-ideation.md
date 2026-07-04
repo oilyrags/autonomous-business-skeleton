@@ -6,7 +6,11 @@
 > the pure `ideate()`/`ideation_gate` (PRD 0007), `ab_console/stream.py` + `/events/stream` (the
 > existing SSE + native `EventSource` rail), the `build()`/`publish_event()` emission ritual (Deepen 1,
 > ADR-0060), and the console's kill-switch read. Tracker: no `gh` → issues under `.scratch/ideate-async/`.
-> **Status: grilled + specced; A1–A5 pending.**
+> **Status: A1–A5 SHIPPED + live-verified. `POST /growth/ideate` returns immediately; the page streams
+> started → per-agent progressed → complete over per-run SSE and swaps in the gated cards; IdeationRun*
+> lifecycle events on the bus; kill-switch pre-check + mid-run abort + whole-run timeout with
+> best-effort partials; reload/snapshot endpoint; `make ideate-async` demo. Commits `9decf88` (A1),
+> `503c45e` (A2), `35c64bb` (A3), `fc2894c` (A4), + A5.**
 
 ## Problem statement
 

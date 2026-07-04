@@ -166,6 +166,28 @@ def test_streaming_run_renders_gated_cards_server_side() -> None:
     assert "proceed" in html.lower()  # a deterministic PROCEED verdict chip
 
 
+def test_snapshot_of_a_finished_run_renders_cards(client: TestClient) -> None:
+    # PRD 0011 A5: reloading GET /growth/ideate/{run_id} for a finished run shows the gated cards
+    import asyncio
+
+    from ab_console import app
+
+    async def scenario() -> str:
+        run_id = app._IDEATION_RUNNER.start("rocket", "p", operator="op")
+        async for _frame in app._IDEATION_RUNNER.stream(run_id):
+            pass
+        return run_id
+
+    run_id = asyncio.run(scenario())
+    body = client.get(f"/growth/ideate/{run_id}").text
+    assert "Propose experiment" in body  # the gated PROCEED card, re-rendered from the snapshot
+
+
+def test_snapshot_of_an_unknown_run_bounces_to_growth(client: TestClient) -> None:
+    resp = client.get("/growth/ideate/run_does_not_exist")  # follows the 303 to /growth
+    assert resp.status_code == 200 and "Run ideation" in resp.text
+
+
 def test_growth_workspace_requires_auth() -> None:
     from ab_console.app import app
 

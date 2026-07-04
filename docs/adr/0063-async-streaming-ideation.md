@@ -76,6 +76,24 @@ gate. Async only changes *when* the browser learns the answer and *what it watch
 - The `IdeationRunner` port keeps the production shape open: a detached-agent or persisted-job adapter
   drops in later without touching the console or the gate.
 
+## Shipped (A1–A5)
+
+- **A1** (`9decf88`) `ab_growth/ideation_runner.py`: `IdeationRunner` port + `InProcessIdeationRunner`
+  (asyncio task, blocking pipeline in a thread executor, ephemeral capped registry, dedup). `POST
+  /growth/ideate` returns a streaming shell; `GET /growth/ideate/{run_id}/stream` drives the native
+  `EventSource`; the terminal `complete` frame carries the server-rendered cards.
+- **A2** (`503c45e`) an `on_step` hook on `MultiAgentIdeationModel` → a `progressed` frame per agent
+  (generators emit the moment they finish; UI keyed by step name) framed by started…complete.
+- **A3** (`35c64bb`) `IdeationRunStarted`/`Completed`/`Failed` (new `ab_schemas` events + a
+  `growth.ideation.run` topic + AsyncAPI docs) via an injected sink, wired to the bus only under a live
+  bus. Per-agent progress stays SSE-only (advisory transport, not a durable audit fact) by design.
+- **A4** (`fc2894c`) kill-switch pre-check (halted → no spend), whole-run timeout, mid-run abort (the
+  model polls `should_abort` before critic/synth), best-effort partial cards (a generator-pool snapshot
+  gated through `ideate.judge_candidates`), always a terminal `failed` frame + `IdeationRunFailed`.
+- **A5** `GET /growth/ideate/{run_id}` reload/snapshot (re-attach if running, cards if done, bounce to
+  `/growth` if unknown); `make ideate-async` (canned, infra-free) streams start → 5 agents → gated
+  cards; docs closed. Live-verified end to end through the console.
+
 ## Out of scope / deferred
 
 Durable run history + multi-worker/shared registry (the persisted-job adapter behind the same port);

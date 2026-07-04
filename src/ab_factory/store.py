@@ -100,3 +100,13 @@ def get(business_id: str) -> Business | None:
     if row is None:
         return None
     return _row_to_business(dict(zip(cols, row, strict=True)))
+
+
+def list_active() -> list[str]:
+    """The active fleet — business_ids of every launched business (for the console fleet overview)."""
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT business_id FROM businesses WHERE status = %s ORDER BY business_id",
+            (Status.ACTIVE.value,),
+        ).fetchall()
+    return [str(r[0]) for r in rows]

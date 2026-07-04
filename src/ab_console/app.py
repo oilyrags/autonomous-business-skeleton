@@ -226,6 +226,8 @@ def experiment_records_provider() -> list[ExperimentRecord]:
 
 
 def fleet_provider() -> FleetView:
+    if _CONSOLE_LIVE:
+        return live_reads.fleet()
     return fleet(
         _SAMPLE_SNAPSHOTS,
         anomalies=_SAMPLE_ANOMALIES,
@@ -236,15 +238,15 @@ def fleet_provider() -> FleetView:
 
 
 def snapshots_provider() -> list[BusinessSnapshot]:
-    return _SAMPLE_SNAPSHOTS
+    return live_reads.snapshots() if _CONSOLE_LIVE else _SAMPLE_SNAPSHOTS
 
 
 def econ_provider() -> dict[str, UnitEconomics]:
-    return _SAMPLE_ECON
+    return live_reads.econ() if _CONSOLE_LIVE else _SAMPLE_ECON
 
 
 def checks_provider() -> list[CheckResult]:
-    return _SAMPLE_CHECKS
+    return live_reads.checks() if _CONSOLE_LIVE else _SAMPLE_CHECKS
 
 
 def experiments_provider() -> list[ExperimentRow]:

@@ -93,3 +93,20 @@ def test_multiagent_demo_runs_to_proceed_candidates() -> None:
     from ab_growth.multiagent_demo import run
 
     assert run(verbose=False) == 0  # the canned pipeline reaches gated PROCEED candidates
+
+
+def test_parser_coerces_string_arms_and_json_fences() -> None:
+    from ab_growth.multiagent import _parse_candidates
+
+    # a real model often emits arms as descriptive strings and wraps the array in ```json fences
+    body = _cand("real-1").model_dump_json()
+    import json as _json
+
+    obj = _json.loads(body)
+    obj["experiment"]["arms"] = ["Control: current step-2", "Treatment: pre-filled step-2"]
+    raw = "```json\n[" + _json.dumps(obj) + "]\n```"
+
+    cands = _parse_candidates(raw)
+    assert len(cands) == 1
+    assert cands[0].experiment.arms[0].name == "control"  # string arm coerced to an Arm
+    assert cands[0].experiment.arms[1].name == "treatment"

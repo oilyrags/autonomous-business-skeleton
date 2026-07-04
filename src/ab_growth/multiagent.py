@@ -33,7 +33,8 @@ _SCHEMA_HINT = (
     "Return ONLY a JSON array; each item matches the IdeaCandidate schema "
     "(idea_id, title, expected_impact{primary_metric}, grounding_sources, "
     "scores{novelty,feasibility,market,grounding,experiment_clarity 1-5}, "
-    "experiment{business_id,hypothesis,arms,budget_minor,success_metrics})."
+    'experiment{business_id, hypothesis, arms:[{name,description},{name,description}], '
+    "budget_minor, success_metrics})."
 )
 
 
@@ -53,19 +54,43 @@ def _gateway_call(task_profile: str, prompt: str) -> str:
     return model_gateway.complete(task_profile, prompt)
 
 
+def _extract_json_array(raw: str) -> str:
+    """A reasoning model often wraps the array in ```json fences or prose. Return the substring from
+    the first ``[`` to the last ``]`` so a clean array still parses."""
+    start, end = raw.find("["), raw.rfind("]")
+    return raw[start : end + 1] if 0 <= start < end else raw
+
+
+def _normalize(item: object) -> object:
+    """Coerce common real-model shape drift into the IdeaCandidate schema. Chiefly: models emit
+    ``experiment.arms`` as descriptive strings; wrap them into ``{name, description}`` (control first,
+    treatment(s) after) so a strong idea isn't dropped over formatting."""
+    if not isinstance(item, dict):
+        return item
+    exp = item.get("experiment")
+    if isinstance(exp, dict) and isinstance(exp.get("arms"), list):
+        exp["arms"] = [
+            arm
+            if isinstance(arm, dict)
+            else {"name": "control" if i == 0 else "treatment", "description": str(arm)}
+            for i, arm in enumerate(exp["arms"])
+        ]
+    return item
+
+
 def _parse_candidates(raw: str) -> list[IdeaCandidate]:
     """Parse a role's JSON output into candidates, degrading safely (abstain marker → none; malformed
-    array or item → skipped, never guessed)."""
+    array or item → skipped, never guessed). Tolerant of ```json fences and string-valued arms."""
     if raw.startswith("[fallback:"):
         return []
     try:
-        payload = json.loads(raw)
+        payload = json.loads(_extract_json_array(raw))
     except (json.JSONDecodeError, ValueError):
         return []
     out: list[IdeaCandidate] = []
     for item in payload if isinstance(payload, list) else []:
         try:
-            out.append(IdeaCandidate.model_validate(item))
+            out.append(IdeaCandidate.model_validate(_normalize(item)))
         except ValueError:
             continue
     return out

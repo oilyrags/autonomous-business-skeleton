@@ -25,6 +25,19 @@ AgentCall = Callable[[str, str], str]
 # (step_name, status) -> None. An optional progress hook: fires as each agent finishes (PRD 0011 A2),
 # so a runner can stream per-agent progress. Advisory — never influences the pipeline or the gate.
 StepHook = Callable[[str, str], None]
+# ([candidates]) -> None. Snapshot the generator pool once assembled, so a runner can render
+# best-effort partial cards if the run later times out or is aborted (PRD 0011 A4).
+PartialHook = Callable[[list[IdeaCandidate]], None]
+AbortCheck = Callable[[], bool]  # returns True when the run should stop spending (e.g. kill switch)
+
+
+class IdeationAborted(Exception):
+    """Raised mid-run when the injected abort check trips (e.g. the kill switch), stopping further
+    model spend. Carries the partial candidate pool gathered so far (best-effort)."""
+
+    def __init__(self, partial: list[IdeaCandidate]) -> None:
+        super().__init__("ideation aborted mid-run")
+        self.partial = partial
 
 # The three generator lenses (personas). One model + one profile; the persona is the only difference.
 GENERATORS: tuple[tuple[str, str], ...] = (
@@ -147,12 +160,20 @@ class MultiAgentIdeationModel:
         self._profile = task_profile
         self.last_trace: AgentTrace = AgentTrace()
         self.on_step: StepHook | None = None  # set by a runner to stream per-agent progress (A2)
+        self.on_partial: PartialHook | None = None  # snapshot the pool for best-effort partials (A4)
+        self.should_abort: AbortCheck | None = None  # kill-switch-aware mid-run abort (A4)
 
     def _emit(self, step: str, status: str) -> None:
         """Fire the progress hook (if any). Called from generator worker threads and the propose
         thread, so the hook must be thread-safe — the runner marshals onto its event loop."""
         if self.on_step is not None:
             self.on_step(step, status)
+
+    def _check_abort(self, pool: list[IdeaCandidate]) -> None:
+        """Stop before the next model call if the run has been aborted (e.g. kill switch tripped),
+        surfacing the pool gathered so far. Checked between stages, so an in-flight run halts fast."""
+        if self.should_abort is not None and self.should_abort():
+            raise IdeationAborted(_dedup(pool))
 
     def _safe_call(self, prompt: str) -> str:
         """A generator call that degrades to an abstain marker instead of raising — so one flaky
@@ -186,11 +207,16 @@ class MultiAgentIdeationModel:
         for _lens, raw in generators:
             pool.extend(_parse_candidates(raw))
 
+        if self.on_partial is not None and pool:
+            self.on_partial(list(pool))  # snapshot for best-effort partials if critic/synth stalls
+
         critique = ""
         synthesis = ""
         if pool:
+            self._check_abort(pool)  # the kill switch may have tripped during the generators
             critique = self._call(self._profile, _critic_prompt(pool, grounding))
             self._emit("critic", "done")
+            self._check_abort(pool)
             synthesis = self._call(
                 self._profile, _synthesizer_prompt(business_id, pool, critique, grounding, count)
             )

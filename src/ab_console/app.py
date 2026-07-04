@@ -61,7 +61,13 @@ from ab_growth.ideate import (
 )
 from ab_growth.ideation_runner import IdeationRunner, InProcessIdeationRunner
 from ab_growth.kpis import experiment_gauges, experiment_kpis
-from ab_growth.multiagent import AgentTrace, MultiAgentIdeationModel, StepHook
+from ab_growth.multiagent import (
+    AbortCheck,
+    AgentTrace,
+    MultiAgentIdeationModel,
+    PartialHook,
+    StepHook,
+)
 from ab_growth.proposer import ExperimentProposer, StubExperimentProposer
 from ab_growth.store import ExperimentRecord
 from ab_monitor.check import CheckResult, CheckStatus, cert_expiry_check, slo_burn_check
@@ -409,14 +415,33 @@ class _StubFallbackModel:
     def last_trace(self) -> AgentTrace | None:
         return getattr(self._primary, "last_trace", None)
 
+    # Forward the runner's optional hooks (progress / partial-snapshot / abort) to the wrapped model.
     @property
-    def on_step(self) -> StepHook | None:  # forward the runner's progress hook to the wrapped model
+    def on_step(self) -> StepHook | None:
         return getattr(self._primary, "on_step", None)
 
     @on_step.setter
     def on_step(self, hook: StepHook | None) -> None:
         if hasattr(self._primary, "on_step"):
             self._primary.on_step = hook
+
+    @property
+    def on_partial(self) -> PartialHook | None:
+        return getattr(self._primary, "on_partial", None)
+
+    @on_partial.setter
+    def on_partial(self, hook: PartialHook | None) -> None:
+        if hasattr(self._primary, "on_partial"):
+            self._primary.on_partial = hook
+
+    @property
+    def should_abort(self) -> AbortCheck | None:
+        return getattr(self._primary, "should_abort", None)
+
+    @should_abort.setter
+    def should_abort(self, check: AbortCheck | None) -> None:
+        if hasattr(self._primary, "should_abort"):
+            self._primary.should_abort = check
 
 
 def _ideation_model() -> IdeationModel:
@@ -440,9 +465,18 @@ def _ideation_event_sink(event: Envelope) -> None:
     bus.publish_event(settings.ideation_topic, key=event.subject_ref.id, event=event)
 
 
+def _ideation_is_halted() -> bool:
+    """The runner's kill-switch check (PRD 0011 A4): halted → no GLM spend + mid-run abort. Reads the
+    live kill-switch state when AB_CONSOLE_PROVIDER=live; dev/CI is never halted."""
+    active, _reason = kill_switch_state_provider()
+    return active
+
+
 _IDEATION_RUNNER: IdeationRunner = InProcessIdeationRunner(
     model_factory=_ideation_model,
     event_sink=_ideation_event_sink if _CONSOLE_LIVE else None,
+    is_halted=_ideation_is_halted,
+    timeout_s=float(os.environ.get("AB_IDEATION_TIMEOUT_S", "300")),
 )
 
 

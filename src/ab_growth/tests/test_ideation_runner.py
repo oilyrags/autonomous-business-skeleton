@@ -163,6 +163,78 @@ def test_no_sink_means_no_publish_and_no_crash() -> None:
     assert asyncio.run(scenario()) == "complete"
 
 
+def test_a_halted_business_fails_without_spending() -> None:
+    # PRD 0011 A4: a halted kill switch fails the run before the model is ever invoked (no GLM spend)
+    calls: list[int] = []
+
+    class _Tracked:
+        def propose(self, business_id: str, grounding: GroundingReport, count: int) -> list[IdeaCandidate]:
+            calls.append(1)
+            return []
+
+    async def scenario() -> tuple[list[dict[str, object]], RunStatus]:
+        runner = InProcessIdeationRunner(model_factory=_Tracked, is_halted=lambda: True)
+        run_id = runner.start("acme", "p", operator="op")
+        frames = await _drain(runner, run_id)
+        snap = runner.snapshot(run_id)
+        assert snap is not None
+        return frames, snap.status
+
+    frames, status = asyncio.run(scenario())
+    assert frames[-1]["type"] == "failed" and frames[-1]["reason"] == "killswitch"
+    assert status is RunStatus.FAILED
+    assert calls == []  # the model was never called — nothing spent
+
+
+def test_a_slow_run_times_out_with_a_failed_frame() -> None:
+    import time
+
+    class _Slow:
+        def propose(self, business_id: str, grounding: GroundingReport, count: int) -> list[IdeaCandidate]:
+            time.sleep(0.5)
+            return []
+
+    async def scenario() -> tuple[list[dict[str, object]], RunStatus]:
+        runner = InProcessIdeationRunner(model_factory=_Slow, timeout_s=0.05)
+        run_id = runner.start("acme", "p", operator="op")
+        frames = await _drain(runner, run_id)
+        snap = runner.snapshot(run_id)
+        assert snap is not None
+        return frames, snap.status
+
+    frames, status = asyncio.run(scenario())
+    assert frames[-1]["type"] == "failed" and frames[-1]["reason"] == "timeout"
+    assert status is RunStatus.FAILED
+
+
+def test_a_midrun_abort_stops_spend_and_surfaces_partials() -> None:
+    # a kill switch that trips during the generators aborts before the critic/synthesizer calls, and
+    # the generator pool is still gated into best-effort partial cards
+    from ab_growth.multiagent import MultiAgentIdeationModel
+
+    calls: list[str] = []
+    tripped = {"v": False}
+
+    def _canned(profile: str, prompt: str) -> str:
+        calls.append(prompt.lower())
+        tripped["v"] = True  # once a generator has run, arm the kill switch
+        return _arr(_SAMPLE)
+
+    async def scenario() -> tuple[list[dict[str, object]], object]:
+        runner = InProcessIdeationRunner(
+            model_factory=lambda: MultiAgentIdeationModel(agent_call=_canned),
+            is_halted=lambda: tripped["v"],
+        )
+        run_id = runner.start("acme", "p", operator="op")
+        frames = await _drain(runner, run_id)
+        return frames, runner.snapshot(run_id)
+
+    frames, snap = asyncio.run(scenario())
+    assert frames[-1]["type"] == "failed" and frames[-1]["reason"] == "killswitch"
+    assert not any("critic" in c or "synthesizer" in c for c in calls)  # spend stopped before them
+    assert snap.result is not None and len(snap.result.judged) >= 1  # type: ignore[attr-defined]
+
+
 def test_snapshot_is_none_for_an_unknown_run() -> None:
     runner = InProcessIdeationRunner(model_factory=StubIdeationModel)
     assert runner.snapshot("run_nope") is None

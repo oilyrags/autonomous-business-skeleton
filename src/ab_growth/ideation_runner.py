@@ -11,24 +11,32 @@ The pipeline itself is synchronous and does blocking model calls, so it runs in 
 — the event loop stays free to serve the SSE stream. Per-agent progress (A2) is emitted from that
 worker thread via a loop-affine, thread-safe hook. The deterministic `ideation_gate` is unchanged and
 authoritative; frames are advisory transport, never an input to a decision.
+
+Governance (A4): a run never spends when the business is halted (a kill-switch pre-check skips the
+pipeline) and never hangs (a whole-run timeout bounds it); a kill switch that trips mid-run aborts the
+next model call. A timeout/abort still surfaces best-effort partial cards — the generator pool snapshot
+judged through the same pure gate — and always emits a terminal ``failed`` frame + IdeationRunFailed.
 """
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from ab_growth.ideate import (
+    GroundingReport,
     GroundingSource,
+    IdeaCandidate,
     IdeationModel,
     IdeationResult,
     StubGroundingSource,
     ideate,
+    judge_candidates,
 )
-from ab_growth.multiagent import AgentTrace, StepHook
+from ab_growth.multiagent import AbortCheck, AgentTrace, IdeationAborted, PartialHook, StepHook
 from ab_schemas.events import (
     Envelope,
     IdeationRunCompleted,
@@ -61,6 +69,7 @@ class RunState:
     result: IdeationResult | None = None
     trace: AgentTrace | None = None  # the advisory multi-agent reasoning (if the model exposes one)
     reason: str = ""  # populated on FAILED (timeout / killswitch / error)
+    partial_candidates: list[IdeaCandidate] = field(default_factory=list)  # generator-pool snapshot (A4)
 
 
 @dataclass
@@ -70,10 +79,13 @@ class _Run:
 
 
 @runtime_checkable
-class _SupportsProgress(Protocol):
-    """A model that can report per-agent progress (e.g. the multi-agent adapter)."""
+class _HasRunHooks(Protocol):
+    """A model that exposes the optional run hooks (the multi-agent adapter): per-agent progress, a
+    partial-pool snapshot, and a kill-switch-aware abort check."""
 
     on_step: StepHook | None
+    on_partial: PartialHook | None
+    should_abort: AbortCheck | None
 
 
 class IdeationRunner(Protocol):
@@ -99,12 +111,16 @@ class InProcessIdeationRunner:
         count: int = 3,
         max_runs: int = _DEFAULT_MAX_RUNS,
         event_sink: EventSink | None = None,
+        timeout_s: float | None = None,
+        is_halted: AbortCheck | None = None,
     ) -> None:
         self._model_factory = model_factory
         self._grounding_factory = grounding_factory
         self._count = count
         self._max_runs = max_runs
         self._event_sink = event_sink
+        self._timeout_s = timeout_s  # whole-run bound; None → unbounded (CI stubs are instant)
+        self._is_halted = is_halted  # kill-switch check: pre-run gate + mid-run abort
         self._runs: dict[str, _Run] = {}
         self._active: dict[str, str] = {}  # business_id -> the in-flight run_id
         self._seq = 0
@@ -164,44 +180,88 @@ class InProcessIdeationRunner:
             loop.call_soon_threadsafe(run.queue.put_nowait, frame)
 
         try:
-            result, trace = await loop.run_in_executor(None, self._pipeline, state, _emit_step)
-            state.result = result
-            state.trace = trace
-            state.status = RunStatus.COMPLETE
-            await run.queue.put(
-                {"type": "complete", "run_id": run_id, "candidate_count": len(result.judged)}
-            )
-            await self._publish(
-                loop,
-                build(
-                    IdeationRunCompleted,
-                    subject=("business", state.business_id),
-                    producer=_PRODUCER,
-                    business_id=state.business_id,
-                    run_id=run_id,
-                    candidate_count=len(result.judged),
-                    proceed_count=len(result.proceed),
-                ),
-            )
-        except Exception as exc:  # noqa: BLE001 - a detached run must surface, not swallow, failure
-            state.status = RunStatus.FAILED
-            state.reason = str(exc) or exc.__class__.__name__
-            await run.queue.put({"type": "failed", "run_id": run_id, "reason": state.reason})
-            await self._publish(
-                loop,
-                build(
-                    IdeationRunFailed,
-                    subject=("business", state.business_id),
-                    producer=_PRODUCER,
-                    business_id=state.business_id,
-                    run_id=run_id,
-                    reason=state.reason,
-                ),
-            )
+            if self._is_halted is not None and self._is_halted():
+                await self._fail(run, loop, "killswitch")  # halted → never spend on GLM
+            else:
+                await self._run_pipeline(run, loop, _emit_step)
         finally:
             if self._active.get(state.business_id) == run_id:
                 self._active.pop(state.business_id, None)
             await run.queue.put(None)  # terminate any stream consumer
+
+    async def _run_pipeline(
+        self, run: _Run, loop: asyncio.AbstractEventLoop, on_step: StepHook
+    ) -> None:
+        state = run.state
+        future = loop.run_in_executor(None, self._pipeline, state, on_step)
+        try:
+            if self._timeout_s is not None:
+                result, trace = await asyncio.wait_for(future, self._timeout_s)
+            else:
+                result, trace = await future
+        except TimeoutError:
+            await self._fail(run, loop, "timeout", partial=self._partial_result(state))
+            return
+        except IdeationAborted as aborted:
+            state.partial_candidates = state.partial_candidates or aborted.partial
+            await self._fail(run, loop, "killswitch", partial=self._partial_result(state))
+            return
+        except Exception as exc:  # noqa: BLE001 - a detached run must surface, not swallow, failure
+            await self._fail(run, loop, str(exc) or exc.__class__.__name__)
+            return
+        state.result = result
+        state.trace = trace
+        state.status = RunStatus.COMPLETE
+        await run.queue.put(
+            {"type": "complete", "run_id": state.run_id, "candidate_count": len(result.judged)}
+        )
+        await self._publish(
+            loop,
+            build(
+                IdeationRunCompleted,
+                subject=("business", state.business_id),
+                producer=_PRODUCER,
+                business_id=state.business_id,
+                run_id=state.run_id,
+                candidate_count=len(result.judged),
+                proceed_count=len(result.proceed),
+            ),
+        )
+
+    async def _fail(
+        self,
+        run: _Run,
+        loop: asyncio.AbstractEventLoop,
+        reason: str,
+        *,
+        partial: IdeationResult | None = None,
+    ) -> None:
+        """Terminate a run as FAILED: record the reason, attach any best-effort partial result (shown
+        as cards), emit the terminal `failed` frame + IdeationRunFailed. The stream always terminates."""
+        state = run.state
+        state.status = RunStatus.FAILED
+        state.reason = reason
+        if partial is not None:
+            state.result = partial
+        await run.queue.put({"type": "failed", "run_id": state.run_id, "reason": reason})
+        await self._publish(
+            loop,
+            build(
+                IdeationRunFailed,
+                subject=("business", state.business_id),
+                producer=_PRODUCER,
+                business_id=state.business_id,
+                run_id=state.run_id,
+                reason=reason,
+            ),
+        )
+
+    def _partial_result(self, state: RunState) -> IdeationResult | None:
+        """Gate the generator-pool snapshot (if any) through the pure gate — best-effort cards for a
+        timed-out / aborted run. None when nothing completed (e.g. timeout during the generators)."""
+        if not state.partial_candidates:
+            return None
+        return judge_candidates(state.business_id, state.partial_candidates, grounding=GroundingReport())
 
     async def _publish(self, loop: asyncio.AbstractEventLoop, event: Envelope) -> None:
         """Emit a lifecycle event through the injected sink, off the event loop (the sink may block on
@@ -220,8 +280,10 @@ class InProcessIdeationRunner:
         trace (if it exposes one). Attaches the progress hook to a progress-capable model (A2). The
         gate inside `ideate()` stays authoritative."""
         model = self._model_factory()
-        if isinstance(model, _SupportsProgress):
+        if isinstance(model, _HasRunHooks):
             model.on_step = on_step
+            model.on_partial = lambda cands: setattr(state, "partial_candidates", list(cands))
+            model.should_abort = self._is_halted
         result = ideate(
             state.business_id,
             state.prompt,

@@ -146,6 +146,19 @@ def ideation_gate(scores: Scores, grounding_sources: list[str]) -> Verdict:
 # --- Orchestration (pure over the injected ports) --------------------------------------------------
 
 
+def judge_candidates(
+    business_id: str, candidates: list[IdeaCandidate], *, grounding: GroundingReport
+) -> IdeationResult:
+    """Apply the deterministic gate to a set of already-generated candidates. Pure and replayable —
+    the sole authority on PROCEED/REFINE/KILL. Reused to gate a partial (best-effort) candidate set
+    when a run is aborted or times out (PRD 0011 A4)."""
+    judged = [
+        JudgedIdea(c, overall_score(c.scores), ideation_gate(c.scores, c.grounding_sources))
+        for c in candidates
+    ]
+    return IdeationResult(business_id=business_id, grounding=grounding, judged=judged)
+
+
 def ideate(
     business_id: str,
     prompt: str,
@@ -158,11 +171,7 @@ def ideate(
     the deterministic gate to each. The PROCEED ideas carry experiments ready for E1/E5."""
     report = grounding.ground(business_id, prompt)
     candidates = model.propose(business_id, report, count)
-    judged = [
-        JudgedIdea(c, overall_score(c.scores), ideation_gate(c.scores, c.grounding_sources))
-        for c in candidates
-    ]
-    return IdeationResult(business_id=business_id, grounding=report, judged=judged)
+    return judge_candidates(business_id, candidates, grounding=report)
 
 
 def propose_ideas(result: IdeationResult, *, proposer: ExperimentProposer, maker: str) -> list[str]:

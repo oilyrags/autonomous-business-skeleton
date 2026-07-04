@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pydantic import ValidationError
 
 from ab_econ.core import UnitEconomics
+from ab_growth.blueprint import Blueprint
 from ab_growth.experiment import Decision, Experiment
 from ab_growth.ideate import IdeationResult
 from ab_monitor.check import CheckResult, CheckStatus
@@ -308,6 +309,28 @@ def decisions_view(
 
 
 # --- E2: propose an experiment (form → governed proposal) ------------------------------------------
+
+
+def build_blueprint_seed(form: Mapping[str, str]) -> tuple[Blueprint, int]:
+    """A fleet 'start a business' form → a launch-ready-capable `Blueprint` + its capital. The
+    operator supplies the id, name, and capital; the experiment economics take sensible defaults.
+    Pure; raises `ValidationError`/`ValueError` on bad input (empty id, non-numeric capital)."""
+    business_id = (form.get("business_id") or "").strip()
+    if not business_id:
+        raise ValueError("business id is required")
+    name = (form.get("name") or "").strip() or business_id.replace("-", " ").title()
+    capital_raw = (form.get("capital_minor") or "2000000").strip()
+    if not capital_raw.lstrip("-").isdigit():
+        raise ValueError("capital must be a whole number of minor units")
+    blueprint = Blueprint(
+        business_id=business_id,
+        name=name,
+        target_revenue_minor=1_000_000,
+        experiment_budget_minor=200_000,
+        min_conversion_rate=0.05,
+        max_cac_minor=50_000,
+    )
+    return blueprint, int(capital_raw)
 
 
 def build_proposal(

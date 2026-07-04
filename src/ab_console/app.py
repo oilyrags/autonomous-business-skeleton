@@ -20,6 +20,7 @@ from fastapi import Depends, FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
 
 from ab_common.adapters import select_adapter
 from ab_console import live_reads
@@ -36,6 +37,7 @@ from ab_console.viewmodels import (
     PendingDecision,
     action_badge,
     audit_view,
+    build_blueprint_seed,
     build_proposal,
     business_detail,
     decisions_view,
@@ -289,6 +291,47 @@ def fleet_dashboard(
 ) -> HTMLResponse:
     chrome = _chrome("fleet", view, view.alert_count)
     return templates.TemplateResponse(request, "fleet.html", {"view": view, "chrome": chrome})
+
+
+@app.post("/businesses/seed", response_class=HTMLResponse)
+async def businesses_seed(
+    request: Request,
+    operator: Annotated[Operator, Depends(require_operator)],
+) -> HTMLResponse:
+    """Seed (provision) a launch-ready business — an operator-initiated business-formation action
+    (VULN-001 + origin-checked). `ab_factory.store.provision` enforces the funding/readiness/
+    compliance gates and emits `BusinessActivated`; the new business then appears in the fleet and is
+    available to growth. Unblocks testing growth against a business that doesn't exist yet."""
+    require_mutator(operator)  # starting a business allocates capital — a mutating action
+    check_origin(request)  # CSRF defense in depth
+    from ab_factory import store as factory_store
+    from ab_factory.core import Underfunded
+
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    form = {k: v[0] for k, v in parse_qs(raw).items()}
+
+    def _render(
+        *, seeded: str | None = None, error: str | None = None, status_code: int = 200
+    ) -> HTMLResponse:
+        view = fleet_provider()  # re-read so a freshly-seeded business shows immediately
+        ctx = {
+            "view": view,
+            "chrome": _chrome("fleet", view, view.alert_count),
+            "seeded": seeded,
+            "seed_error": error,
+        }
+        return templates.TemplateResponse(request, "fleet.html", ctx, status_code=status_code)
+
+    try:
+        blueprint, capital_minor = build_blueprint_seed(form)
+        business = factory_store.provision(blueprint, capital_minor=capital_minor)
+    except factory_store.AlreadyProvisioned as exc:
+        return _render(error=f"business '{exc}' already exists", status_code=409)
+    except Underfunded as exc:
+        return _render(error=f"underfunded: {exc}", status_code=400)
+    except (ValidationError, ValueError) as exc:
+        return _render(error=f"invalid input: {exc}", status_code=400)
+    return _render(seeded=f"{business.business_id} — {business.status.value}")
 
 
 @app.get("/business/{business_id}", response_class=HTMLResponse)

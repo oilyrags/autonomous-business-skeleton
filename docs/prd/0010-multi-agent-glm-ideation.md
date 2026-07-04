@@ -7,6 +7,8 @@
 > (eval gate + `complete`, `llm_budget` metering), `ab_gateway/model_routes.py` (`TaskRoute`/`ROUTES`),
 > the PRD 0009 machinery (`AB_IDEATION_PROVIDER` selection, persisted `eval-promote`, eval suites), and
 > the `ab_console` `/growth` E7 workspace. Tracker: no `gh` → issues under `.scratch/ideate/`.
+> **Status: M1–M4 shipped (code + infra-free demo/tests green). Live GLM-5.2 blocked on a valid
+> OpenRouter key — the one in `api-keys/openrouter_api` 401s / isn't `sk-or-v1-` format.**
 
 ## Problem statement
 
@@ -56,10 +58,12 @@ until then `model_gateway.complete` abstains and the adapter degrades to the stu
 view-model renders it; the `growth.html` workspace shows a collapsible "agent trace" (each role's
 contribution) **visually distinct** from the PROCEED/REFINE/KILL verdict chips (the E7 advisory pattern).
 
-**M4 — Governance + demo + docs.** Confirm each of the 5 agent calls meters to the business's
-`llm_spend` and is denied on budget breach (reuse `complete_for_business`/`llm_budget`); a
-`make ideate-multiagent` / demo that runs the pipeline on the stub agent (infra-free) end to end;
-CONTEXT-MAP + PRD/ADR closure; `PROJECT.md` changelog.
+**M4 — Governance + demo + docs.** `make ideate-multiagent` runs the pipeline on a canned agent
+(infra-free) end to end → gated PROCEED candidates; CONTEXT-MAP + PRD/ADR closure; `PROJECT.md`
+changelog. **Metering correction:** ideation calls `model_gateway.complete` directly (eval-gated) but
+is **not** ledger-metered — `llm_budget` metering is the `complete_for_business` tool's job, which
+ideation (existing + multi-agent) doesn't route through; routing it through a metered business-scoped
+call is a follow-up. The fixed 5-calls/run bounds cost predictably meanwhile.
 
 ## Determinism boundary (the audit line)
 

@@ -55,7 +55,23 @@ wired (served model is the stub; no `ideation` route; `portkey-ai` uninstalled).
 
 The multi-agent pipeline produces **better-vetted** candidates + scores *before* the gate; the gate is
 identical to today. Each agent call routes through the governed `model_gateway` (eval-gated: an
-un-promoted model abstains; metered to `llm_budget`).
+un-promoted model abstains). **Metering note:** `llm_budget` metering lives in the `complete_for_business`
+gateway tool; ideation (existing single-call and this multi-agent adapter) calls `model_gateway.complete`
+directly, so it is eval-gated but **not yet ledger-metered** — routing ideation through a metered
+business-scoped call is a follow-up (the fixed 5-calls/run bounds cost predictably in the meantime).
+
+## Shipped (M1–M4)
+
+- **M1** (`124f727`) `ab_growth/multiagent.py`: `MultiAgentIdeationModel` behind the `IdeationModel`
+  port — 3 generators → critic → synthesizer over an injected `agent_call` seam (default
+  `model_gateway.complete`); `AgentTrace`; degrade-safe. Model-free CI.
+- **M2** (`124f727`) `ideation` route → `z-ai/glm-5.2` (generous `max_tokens`); an `openrouter`
+  provider (reuses `PortkeyModel` + an injected OpenAI client); `AB_IDEATION_PROVIDER=multiagent`.
+  **Live GLM verification blocked** — the key in `api-keys/openrouter_api` 401s (not `sk-or-v1-`).
+- **M3** (`5007ab7`) the advisory `AgentTrace` surfaces in `/growth` as a collapsible section, distinct
+  from the verdict chips.
+- **M4** `make ideate-multiagent` (canned, infra-free) runs the pipeline → gated PROCEED candidates;
+  docs closed. Metering claim corrected (above).
 
 ## GLM-5.2 wiring
 

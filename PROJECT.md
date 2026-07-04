@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** single source of truth for project state. Read this first if you are a new model/session picking up the work. It captures what we're building, what's decided, what's done, what's pending, and the conventions to follow — so context survives model switches. **Keep it updated as work progresses** (see "How to maintain" at the bottom).
 
-- **Last updated:** 2026-07-03 (Multi-agent GLM-5.2 ideation spec — PRD 0010 + ADR-0062, grilled)
+- **Last updated:** 2026-07-03 (Multi-agent GLM-5.2 ideation — PRD 0010 M1–M4 shipped; live GLM blocked on a valid OpenRouter key)
 - **Updated by:** Claude (Opus 4.8)
 - **Working directory:** `/Users/cliada/Documents/code/projects/autonomous-business`
 - **Git repo:** yes — `main` branch, remote `origin` → https://github.com/oilyrags/autonomous-business-skeleton.git

@@ -87,3 +87,9 @@ def test_all_abstain_yields_no_ideas_and_skips_downstream() -> None:
     ideas = MultiAgentIdeationModel(agent_call=_counting).propose("b", _GROUNDING, count=3)
     assert ideas == []  # nothing fabricated
     assert len(agent_calls) == 3  # no candidates → critic + synthesizer are skipped
+
+
+def test_multiagent_demo_runs_to_proceed_candidates() -> None:
+    from ab_growth.multiagent_demo import run
+
+    assert run(verbose=False) == 0  # the canned pipeline reaches gated PROCEED candidates

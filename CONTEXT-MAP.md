@@ -86,7 +86,9 @@ _Avoid_: MVP, prototype, spike (those imply throwaway or scope, not a load-beari
 > **Experimentation & Growth** (`ab_growth`) now spans the full loop (PRD 0007): pure `decide`;
 > a governed `growth.experiment.create` tool + `store`; a `runner` (live stats → deterministic
 > decide → `conclude`); an `ideate` engine (ground→generate→score→gate→design, ports+stub LLM); and
-> `kpis` surfaced on the console `/metrics` (M5 rail) → Grafana.
+> `kpis` surfaced on the console `/metrics` (M5 rail) → Grafana. The ideation `IdeationModel` seam now
+> has a **multi-agent GLM-5.2 adapter** (PRD 0010): 3 generators → critic → synthesizer (advisory);
+> the pure `ideation_gate` still decides; selected by `AB_IDEATION_PROVIDER=multiagent`.
 
 ### Examples (not bounded contexts)
 - [ab_examples](./src/ab_examples/CONTEXT.md) — worked examples composing the contexts end to end (`inboxiq`)

@@ -74,6 +74,24 @@
         </div>
       {% endfor %}
     </div>
+
+    {% if view.agent_trace %}
+      {# PRD 0010: the multi-agent reasoning — advisory only, visually distinct from the deterministic verdicts above #}
+      <details class="mt-6">
+        <summary class="btn btn-ghost btn-xs">
+          <span class="badge badge-outline badge-xs mr-1">advisory</span>agent trace ({{ view.agent_trace | length }} steps)
+        </summary>
+        <div class="mt-2 space-y-2">
+          {% for role, output in view.agent_trace %}
+            <div class="rounded border border-base-300 bg-base-200/40 p-2">
+              <div class="text-xs font-mono opacity-70 mb-1">{{ role }}</div>
+              <pre class="text-xs whitespace-pre-wrap opacity-70">{{ output }}</pre>
+            </div>
+          {% endfor %}
+        </div>
+        <p class="text-xs opacity-50 mt-1">Generators &rarr; critic &rarr; synthesizer. Advisory — the PROCEED/REFINE/KILL verdict is the deterministic gate's, not the agents'.</p>
+      </details>
+    {% endif %}
   {% endif %}
   </section>
 

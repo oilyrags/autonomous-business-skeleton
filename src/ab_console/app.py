@@ -60,7 +60,7 @@ from ab_growth.ideate import (
     ideate,
 )
 from ab_growth.kpis import experiment_gauges, experiment_kpis
-from ab_growth.multiagent import MultiAgentIdeationModel
+from ab_growth.multiagent import AgentTrace, MultiAgentIdeationModel
 from ab_growth.proposer import ExperimentProposer, StubExperimentProposer
 from ab_growth.store import ExperimentRecord
 from ab_monitor.check import CheckResult, CheckStatus, cert_expiry_check, slo_burn_check
@@ -374,11 +374,13 @@ def growth_port_provider() -> ExperimentProposer:
     return select_adapter("growth_port", stub=lambda: _STUB_GROWTH, real=real)
 
 
-def run_ideation(business_id: str, prompt: str) -> IdeationResult:
-    """Run the ideation pipeline for a business (PRD 0009 S6). AB_IDEATION_PROVIDER=modelgateway uses
-    the real ModelGatewayIdeationModel (GLM via model_gateway, eval-gated) — which is why this runs
-    only on an explicit operator trigger, never a GET. The real adapter abstains safely when no model
-    is promoted, so fall back to the deterministic stub to keep the workspace usable."""
+def run_ideation(
+    business_id: str, prompt: str
+) -> tuple[IdeationResult, AgentTrace | None]:
+    """Run the ideation pipeline for a business. AB_IDEATION_PROVIDER selects the model:
+    `multiagent` (PRD 0010, GLM-5.2 generators→critic→synthesizer) | `modelgateway` | stub. Runs only
+    on an explicit operator trigger (an LLM call). Abstains safely to the deterministic stub when no
+    model is promoted, so the workspace stays usable; returns the advisory multi-agent trace (if any)."""
     real: dict[str, Callable[[], IdeationModel]] = {
         "modelgateway": ModelGatewayIdeationModel,
         "multiagent": MultiAgentIdeationModel,  # PRD 0010: generators→critic→synthesizer over GLM-5.2
@@ -386,9 +388,10 @@ def run_ideation(business_id: str, prompt: str) -> IdeationResult:
     model = select_adapter("ideation", stub=StubIdeationModel, real=real)
     grounding = StubGroundingSource()
     result = ideate(business_id, prompt, model=model, grounding=grounding, count=3)
+    trace = model.last_trace if isinstance(model, MultiAgentIdeationModel) else None
     if not result.judged and not isinstance(model, StubIdeationModel):
         result = ideate(business_id, prompt, model=StubIdeationModel(), grounding=grounding, count=3)
-    return result
+    return result, trace
 
 
 def _render_growth(
@@ -439,7 +442,8 @@ async def growth_ideate(
     form = {k: v[0] for k, v in parse_qs(raw).items()}
     business_id = form.get("business_id", "").strip() or (snapshots[0].business_id if snapshots else "")
     prompt = form.get("prompt", "").strip() or "surface a grounded growth opportunity"
-    view = ideation_workspace(run_ideation(business_id, prompt))
+    result, trace = run_ideation(business_id, prompt)
+    view = ideation_workspace(result, trace=trace)
     return _render_growth(request, ks, rows, snapshots, view=view)
 
 

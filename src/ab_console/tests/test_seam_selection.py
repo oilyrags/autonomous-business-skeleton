@@ -21,7 +21,7 @@ def test_ideation_stays_usable_under_modelgateway_without_a_promoted_model(monke
     # the real adapter abstains when its output isn't a usable spec; run_ideation must still render
     # cards (fall back to the deterministic stub) so the workspace is never empty
     monkeypatch.setenv("AB_IDEATION_PROVIDER", "modelgateway")
-    result = app.run_ideation("rocket", "lift activation")
+    result, _ = app.run_ideation("rocket", "lift activation")
     assert len(result.judged) > 0  # cards rendered via the safe fallback
 
 
@@ -29,5 +29,5 @@ def test_multiagent_ideation_selectable_and_stays_usable(monkeypatch) -> None:  
     # PRD 0010: AB_IDEATION_PROVIDER=multiagent runs the generators→critic→synthesizer adapter; with
     # no GLM promoted it abstains, so run_ideation falls back to the stub and still renders cards
     monkeypatch.setenv("AB_IDEATION_PROVIDER", "multiagent")
-    result = app.run_ideation("rocket", "lift activation")
+    result, _ = app.run_ideation("rocket", "lift activation")
     assert len(result.judged) > 0

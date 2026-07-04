@@ -6,7 +6,7 @@ the domain and the UI. Money is formatted from integer minor units; nothing here
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
@@ -14,6 +14,7 @@ from ab_econ.core import UnitEconomics
 from ab_growth.blueprint import Blueprint
 from ab_growth.experiment import Decision, Experiment
 from ab_growth.ideate import IdeationResult
+from ab_growth.multiagent import AgentTrace
 from ab_monitor.check import CheckResult, CheckStatus
 from ab_obs.core import Anomaly, BusinessSnapshot, FleetTotals, fleet_totals
 from ab_schemas.models import Arm, ExperimentCreate
@@ -448,11 +449,22 @@ class GrowthWorkspaceView:
     business_id: str
     grounding_summary: str
     cards: list[IdeaCard]
+    agent_trace: list[tuple[str, str]] = field(default_factory=list)  # (role, output) — advisory only
 
 
-def ideation_workspace(result: IdeationResult) -> GrowthWorkspaceView:
+def ideation_workspace(
+    result: IdeationResult, *, trace: AgentTrace | None = None
+) -> GrowthWorkspaceView:
     """Shape an `ab_growth.ideate.IdeationResult` into workspace cards. Pure; only PROCEED ideas may
-    be proposed (the gate decides, not the UI)."""
+    be proposed (the gate decides, not the UI). The multi-agent `trace` (PRD 0010) is advisory — it is
+    surfaced distinctly from the verdict, never an input to the gate."""
+    agent_trace: list[tuple[str, str]] = []
+    if trace is not None:
+        agent_trace = [(lens, out) for lens, out in trace.generators]
+        if trace.critique:
+            agent_trace.append(("critic", trace.critique))
+        if trace.synthesis:
+            agent_trace.append(("synthesizer", trace.synthesis))
     cards = [
         IdeaCard(
             idea_id=j.candidate.idea_id,
@@ -478,6 +490,7 @@ def ideation_workspace(result: IdeationResult) -> GrowthWorkspaceView:
         business_id=result.business_id,
         grounding_summary=result.grounding.grounding_summary,
         cards=cards,
+        agent_trace=agent_trace,
     )
 
 

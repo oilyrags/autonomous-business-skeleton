@@ -10,7 +10,8 @@ nothing an agent couldn't.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -82,7 +83,22 @@ templates.env.filters["spark"] = sparkline_points
 templates.env.filters["status_badge"] = status_badge
 templates.env.filters["action_badge"] = action_badge
 
-app = FastAPI(title="ab_console")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Serve any eval-promoted model (e.g. GLM-5.2 for `ideation`, PRD 0010) by hydrating the gateway's
+    # in-process promotion registry from the persisted record. Guarded: the infra-free render-smoke
+    # and dev keep the import-time (stub) promotions when there's no DB.
+    try:
+        from ab_evals import promotion_store
+        from ab_gateway import model_gateway
+
+        promotion_store.hydrate(model_gateway.PROMOTIONS)
+    except Exception:  # noqa: BLE001 - no DB (render smoke / dev): keep stub promotions
+        pass
+    yield
+
+
+app = FastAPI(title="ab_console", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=str(_DIR / "static")), name="static")
 
 

@@ -6,6 +6,7 @@
 > (`providers.served()`, `model_gateway` eval gate), `ab_evals`, `ab_console` (`_SAMPLE_` providers,
 > `growth_port`/`killswitch_port`, VULN-001), `ab_monitor` (`icinga2`, M5), `config/keycloak`,
 > `ab_common.config` (`_secret`/`AB_ENV`, VULN-005). Tracker: no `gh` → issues under `.scratch/ops/`.
+> **Status: S1–S6 + the S4 fleet/econ follow-up shipped — Phase 0+1 complete; verified live end to end.**
 
 ## Problem statement
 

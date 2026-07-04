@@ -3,8 +3,10 @@ port, pure over an injected agent-call seam (model-free CI). Infra-free."""
 
 from __future__ import annotations
 
+import threading
+
 from ab_growth.ideate import ExpectedImpact, GroundingReport, IdeaCandidate, Scores
-from ab_growth.multiagent import MultiAgentIdeationModel
+from ab_growth.multiagent import GENERATORS, MultiAgentIdeationModel
 from ab_schemas.models import Arm, ExperimentCreate
 
 _GROUNDING = GroundingReport(grounding_summary="ctx", key_opportunity_signals=["sig"])
@@ -32,14 +34,18 @@ def _arr(*cands: IdeaCandidate) -> str:
 
 
 class _FakeAgent:
-    """A canned agent: one candidate per generator, a critique, two synthesized candidates."""
+    """A canned agent: one candidate per generator, a critique, two synthesized candidates. Thread-safe
+    and order-independent — generators run concurrently, so the candidate id is derived from the
+    persona in the prompt, not the call count."""
 
     def __init__(self, *, synthesis: str | None = None) -> None:
         self.calls: list[str] = []
         self._synthesis = synthesis
+        self._lock = threading.Lock()
 
     def __call__(self, profile: str, prompt: str) -> str:
-        self.calls.append(prompt)
+        with self._lock:
+            self.calls.append(prompt)
         p = prompt.lower()
         if "synthesizer" in p:
             if self._synthesis is not None:
@@ -47,7 +53,10 @@ class _FakeAgent:
             return _arr(_cand("synth-1"), _cand("synth-2"))
         if "red-team critic" in p:
             return "risk: gen-1 and gen-2 overlap; ground gen-3 better."
-        return _arr(_cand(f"gen-{len(self.calls)}"))  # a generator
+        for i, (_lens, persona) in enumerate(GENERATORS, start=1):
+            if persona.lower() in p:  # a generator — stable id per persona
+                return _arr(_cand(f"gen-{i}"))
+        raise AssertionError(f"unexpected agent prompt: {prompt!r}")
 
 
 def test_runs_the_full_roster_and_returns_the_synthesis() -> None:

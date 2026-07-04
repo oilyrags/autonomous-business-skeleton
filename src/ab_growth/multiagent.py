@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from ab_growth.ideate import GroundingReport, IdeaCandidate
@@ -143,12 +144,31 @@ class MultiAgentIdeationModel:
         self._profile = task_profile
         self.last_trace: AgentTrace = AgentTrace()
 
+    def _safe_call(self, prompt: str) -> str:
+        """A generator call that degrades to an abstain marker instead of raising — so one flaky
+        agent among the concurrent generators can't sink the whole run."""
+        try:
+            return self._call(self._profile, prompt)
+        except Exception:  # noqa: BLE001 - advisory generator; abstain rather than fail the run
+            return "[fallback:ideation] generator call failed — abstain"
+
+    def _run_generators(
+        self, business_id: str, grounding: GroundingReport, count: int
+    ) -> list[tuple[str, str]]:
+        """Run the 3 generators concurrently (independent I/O-bound reasoning calls). ``map`` preserves
+        input order, so the trace stays deterministic regardless of completion order."""
+        prompts = [
+            (lens, _generator_prompt(business_id, persona, grounding, count))
+            for lens, persona in GENERATORS
+        ]
+        with ThreadPoolExecutor(max_workers=len(prompts)) as pool:
+            raws = list(pool.map(lambda item: self._safe_call(item[1]), prompts))
+        return [(lens, raw) for (lens, _prompt), raw in zip(prompts, raws, strict=True)]
+
     def propose(self, business_id: str, grounding: GroundingReport, count: int) -> list[IdeaCandidate]:
-        generators: list[tuple[str, str]] = []
+        generators = self._run_generators(business_id, grounding, count)
         pool: list[IdeaCandidate] = []
-        for lens, persona in GENERATORS:
-            raw = self._call(self._profile, _generator_prompt(business_id, persona, grounding, count))
-            generators.append((lens, raw))
+        for _lens, raw in generators:
             pool.extend(_parse_candidates(raw))
 
         critique = self._call(self._profile, _critic_prompt(pool, grounding)) if pool else ""

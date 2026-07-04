@@ -7,13 +7,24 @@ seam. Server-Sent Events + the browser's native EventSource: no client framework
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Iterator
+from collections.abc import AsyncIterable, AsyncIterator, Iterable, Iterator
+
+
+def _frame(event: dict[str, object]) -> str:
+    return f"data: {json.dumps(event, separators=(',', ':'))}\n\n"
 
 
 def sse_format(events: Iterable[dict[str, object]]) -> Iterator[str]:
     """Render events as SSE frames (`data: {json}\\n\\n`) — what EventSource consumes."""
     for event in events:
-        yield f"data: {json.dumps(event, separators=(',', ':'))}\n\n"
+        yield _frame(event)
+
+
+async def sse_format_async(events: AsyncIterable[dict[str, object]]) -> AsyncIterator[str]:
+    """Async twin of `sse_format` for a live, over-time frame source (e.g. a streaming ideation run,
+    PRD 0011) — the frames arrive as the run advances rather than all up front."""
+    async for event in events:
+        yield _frame(event)
 
 
 SAMPLE_EVENTS: list[dict[str, object]] = [

@@ -29,7 +29,7 @@ from ab_console.approvals import ApprovalPort, StubApprovalPort
 from ab_console.auth import Operator, check_origin, require_mutator, require_operator
 from ab_console.killswitch_port import HttpKillSwitchPort, KillSwitchPort, StubKillSwitchPort
 from ab_console.product_port import ProductPort, StubProductPort
-from ab_console.stream import SAMPLE_EVENTS, sse_format
+from ab_console.stream import SAMPLE_EVENTS, sse_format, sse_format_async
 from ab_console.viewmodels import (
     CONFIRM_PHRASE,
     AuditRow,
@@ -53,13 +53,13 @@ from ab_console.viewmodels import (
 )
 from ab_econ.core import UnitEconomics, UnitInputs, economics
 from ab_growth.ideate import (
+    GroundingReport,
+    IdeaCandidate,
     IdeationModel,
-    IdeationResult,
     ModelGatewayIdeationModel,
-    StubGroundingSource,
     StubIdeationModel,
-    ideate,
 )
+from ab_growth.ideation_runner import IdeationRunner, InProcessIdeationRunner
 from ab_growth.kpis import experiment_gauges, experiment_kpis
 from ab_growth.multiagent import AgentTrace, MultiAgentIdeationModel
 from ab_growth.proposer import ExperimentProposer, StubExperimentProposer
@@ -390,24 +390,54 @@ def growth_port_provider() -> ExperimentProposer:
     return select_adapter("growth_port", stub=lambda: _STUB_GROWTH, real=real)
 
 
-def run_ideation(
-    business_id: str, prompt: str
-) -> tuple[IdeationResult, AgentTrace | None]:
-    """Run the ideation pipeline for a business. AB_IDEATION_PROVIDER selects the model:
-    `multiagent` (PRD 0010, GLM-5.2 generators→critic→synthesizer) | `modelgateway` | stub. Runs only
-    on an explicit operator trigger (an LLM call). Abstains safely to the deterministic stub when no
-    model is promoted, so the workspace stays usable; returns the advisory multi-agent trace (if any)."""
+class _StubFallbackModel:
+    """Dev usability: if the selected model abstains (no promoted model → 0 candidates), fall back to
+    the deterministic stub so the workspace is never empty. Delegates the advisory trace to the
+    primary so a real multi-agent run's reasoning still surfaces."""
+
+    def __init__(self, primary: IdeationModel) -> None:
+        self._primary = primary
+
+    def propose(
+        self, business_id: str, grounding: GroundingReport, count: int
+    ) -> list[IdeaCandidate]:
+        ideas = self._primary.propose(business_id, grounding, count)
+        return ideas or StubIdeationModel().propose(business_id, grounding, count)
+
+    @property
+    def last_trace(self) -> AgentTrace | None:
+        return getattr(self._primary, "last_trace", None)
+
+
+def _ideation_model() -> IdeationModel:
+    """Select the ideation model by `AB_IDEATION_PROVIDER` — `multiagent` (PRD 0010, GLM-5.2
+    generators→critic→synthesizer) | `modelgateway` | stub — wrapped so an abstaining real model
+    degrades to stub cards (dev usability). The runner's model factory (PRD 0011)."""
     real: dict[str, Callable[[], IdeationModel]] = {
         "modelgateway": ModelGatewayIdeationModel,
-        "multiagent": MultiAgentIdeationModel,  # PRD 0010: generators→critic→synthesizer over GLM-5.2
+        "multiagent": MultiAgentIdeationModel,
     }
     model = select_adapter("ideation", stub=StubIdeationModel, real=real)
-    grounding = StubGroundingSource()
-    result = ideate(business_id, prompt, model=model, grounding=grounding, count=3)
-    trace = model.last_trace if isinstance(model, MultiAgentIdeationModel) else None
-    if not result.judged and not isinstance(model, StubIdeationModel):
-        result = ideate(business_id, prompt, model=StubIdeationModel(), grounding=grounding, count=3)
-    return result, trace
+    return model if isinstance(model, StubIdeationModel) else _StubFallbackModel(model)
+
+
+_IDEATION_RUNNER: IdeationRunner = InProcessIdeationRunner(model_factory=_ideation_model)
+
+
+def ideation_runner_provider() -> IdeationRunner:
+    """The async ideation runner (PRD 0011). In-process, ephemeral; a detached-agent adapter replaces
+    it behind the same port in a live multi-worker deploy."""
+    return _IDEATION_RUNNER
+
+
+def _render_ideation_result(run_id: str) -> str:
+    """Server-render the gated candidate cards for a finished run — carried in the terminal SSE frame
+    so the browser swaps in server-rendered HTML (no client-side templating)."""
+    state = ideation_runner_provider().snapshot(run_id)
+    if state is None or state.result is None:
+        return ""  # failed before producing any result → the client shows the reason
+    view = ideation_workspace(state.result, trace=state.trace)
+    return templates.env.get_template("_ideation_result.html").render(view=view)
 
 
 def _render_growth(
@@ -417,12 +447,14 @@ def _render_growth(
     snapshots: list[BusinessSnapshot],
     *,
     view: object | None = None,
+    run_id: str | None = None,
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "growth.html",
         {
-            "view": view,  # None until the operator runs ideation (no LLM call on GET)
+            "view": view,  # None until a run completes; server-rendered on a GET snapshot
+            "run_id": run_id,  # set → the page streams the run over SSE (PRD 0011)
             "outcomes": experiments_view(rows),
             "businesses": [s.business_id for s in snapshots],
             "chrome": _chrome("growth", ks, 0),
@@ -450,17 +482,38 @@ async def growth_ideate(
     snapshots: Annotated[list[BusinessSnapshot], Depends(snapshots_provider)],
     ks: Annotated[tuple[bool, str | None], Depends(kill_switch_state_provider)],
     operator: Annotated[Operator, Depends(require_operator)],
+    runner: Annotated[IdeationRunner, Depends(ideation_runner_provider)],
 ) -> HTMLResponse:
-    """Run ideation on the operator's explicit trigger (an LLM call in a live deploy), then render
-    the gated candidate cards. Origin-checked; advisory narrative shown distinctly from verdicts."""
+    """Kick off ideation on the operator's explicit trigger and return **immediately** with a run_id
+    (PRD 0011). The multi-agent GLM-5.2 pipeline runs in the background; the page streams each agent's
+    progress over SSE and swaps in the gated cards on completion. Origin-checked."""
     check_origin(request)
     raw = (await request.body()).decode("utf-8", errors="replace")
     form = {k: v[0] for k, v in parse_qs(raw).items()}
     business_id = form.get("business_id", "").strip() or (snapshots[0].business_id if snapshots else "")
     prompt = form.get("prompt", "").strip() or "surface a grounded growth opportunity"
-    result, trace = run_ideation(business_id, prompt)
-    view = ideation_workspace(result, trace=trace)
-    return _render_growth(request, ks, rows, snapshots, view=view)
+    run_id = runner.start(business_id, prompt, operator=operator.id)
+    return _render_growth(request, ks, rows, snapshots, run_id=run_id)
+
+
+@app.get("/growth/ideate/{run_id}/stream")
+async def growth_ideate_stream(
+    run_id: str,
+    runner: Annotated[IdeationRunner, Depends(ideation_runner_provider)],
+    _op: Annotated[Operator, Depends(require_operator)],
+) -> StreamingResponse:
+    """Per-run SSE (PRD 0011): stream the runner's progress frames to the browser's native
+    EventSource. On a terminal frame, enrich it with the server-rendered candidate cards so rendering
+    stays server-side. Unknown/finished runs yield an empty stream that terminates cleanly."""
+
+    async def frames() -> AsyncIterator[dict[str, object]]:
+        async for frame in runner.stream(run_id):
+            if frame.get("type") in {"complete", "failed"}:
+                yield {**frame, "html": _render_ideation_result(run_id)}
+            else:
+                yield frame
+
+    return StreamingResponse(sse_format_async(frames()), media_type="text/event-stream")
 
 
 # --- P3: /product workspace (gated SDLC + human gates) ---------------------------------------------

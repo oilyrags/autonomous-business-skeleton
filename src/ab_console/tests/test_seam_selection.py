@@ -3,8 +3,25 @@ flip stub↔real by env; ideation stays usable (falls back to stub cards) when n
 
 from __future__ import annotations
 
+import asyncio
+
 from ab_console import app
 from ab_console.killswitch_port import HttpKillSwitchPort, StubKillSwitchPort
+from ab_growth.ideation_runner import InProcessIdeationRunner, RunStatus
+
+
+def _run_ideation(business_id: str, prompt: str) -> object:
+    """Drive the async runner to completion with the console's real model factory, returning the
+    finished RunState — the seam that replaced the old sync run_ideation."""
+
+    async def scenario() -> object:
+        runner = InProcessIdeationRunner(model_factory=app._ideation_model)
+        run_id = runner.start(business_id, prompt, operator="op.test")
+        async for _frame in runner.stream(run_id):
+            pass
+        return runner.snapshot(run_id)
+
+    return asyncio.run(scenario())
 
 
 def test_killswitch_port_defaults_to_stub(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -18,16 +35,18 @@ def test_killswitch_port_http_when_selected(monkeypatch) -> None:  # type: ignor
 
 
 def test_ideation_stays_usable_under_modelgateway_without_a_promoted_model(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    # the real adapter abstains when its output isn't a usable spec; run_ideation must still render
-    # cards (fall back to the deterministic stub) so the workspace is never empty
+    # the real adapter abstains when its output isn't a usable spec; the run must still render cards
+    # (fall back to the deterministic stub) so the workspace is never empty
     monkeypatch.setenv("AB_IDEATION_PROVIDER", "modelgateway")
-    result, _ = app.run_ideation("rocket", "lift activation")
-    assert len(result.judged) > 0  # cards rendered via the safe fallback
+    state = _run_ideation("rocket", "lift activation")
+    assert state.status is RunStatus.COMPLETE  # type: ignore[attr-defined]
+    assert state.result is not None and len(state.result.judged) > 0  # type: ignore[attr-defined]
 
 
 def test_multiagent_ideation_selectable_and_stays_usable(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     # PRD 0010: AB_IDEATION_PROVIDER=multiagent runs the generators→critic→synthesizer adapter; with
-    # no GLM promoted it abstains, so run_ideation falls back to the stub and still renders cards
+    # no GLM promoted it abstains, so the run falls back to the stub and still renders cards
     monkeypatch.setenv("AB_IDEATION_PROVIDER", "multiagent")
-    result, _ = app.run_ideation("rocket", "lift activation")
-    assert len(result.judged) > 0
+    state = _run_ideation("rocket", "lift activation")
+    assert state.status is RunStatus.COMPLETE  # type: ignore[attr-defined]
+    assert state.result is not None and len(state.result.judged) > 0  # type: ignore[attr-defined]

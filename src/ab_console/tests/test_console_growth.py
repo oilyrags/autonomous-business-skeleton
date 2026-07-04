@@ -138,10 +138,32 @@ def test_growth_get_shows_the_trigger_not_a_live_ideation_run(client: TestClient
     assert "advisory" not in body.lower()  # GET does NOT run ideation (no LLM call, no candidate cards)
 
 
-def test_growth_ideate_runs_on_trigger_and_shows_gated_cards(client: TestClient) -> None:
+def test_growth_ideate_returns_a_streaming_shell_immediately(client: TestClient) -> None:
+    # PRD 0011: the trigger no longer blocks — it returns a run_id + a per-run SSE shell right away;
+    # the cards arrive over the stream, not inline in the POST response
     body = client.post("/growth/ideate", data={"business_id": "rocket", "prompt": "reduce drop-off"}).text
-    assert "advisory" in body.lower()  # candidate cards appear only after the explicit run
-    assert "proceed" in body.lower()  # a PROCEED verdict chip, distinct from the advisory narrative
+    assert "new EventSource(" in body and "/growth/ideate/run_" in body and "/stream" in body
+    assert "Agents working" in body
+    assert "Propose experiment" not in body  # no candidate cards inline — they stream in on completion
+
+
+def test_streaming_run_renders_gated_cards_server_side() -> None:
+    # the terminal SSE frame carries server-rendered cards: drive the runner to completion, then the
+    # console renders the same gated PROCEED cards from the finished run's snapshot
+    import asyncio
+
+    from ab_console import app
+
+    async def scenario() -> str:
+        run_id = app._IDEATION_RUNNER.start("rocket", "reduce drop-off", operator="op.test")
+        async for _frame in app._IDEATION_RUNNER.stream(run_id):
+            pass
+        return run_id
+
+    run_id = asyncio.run(scenario())
+    html = app._render_ideation_result(run_id)
+    assert "advisory" in html.lower()  # the advisory narrative label
+    assert "proceed" in html.lower()  # a deterministic PROCEED verdict chip
 
 
 def test_growth_workspace_requires_auth() -> None:
